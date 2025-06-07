@@ -2,12 +2,11 @@ import os
 import requests
 import json
 from dotenv import load_dotenv
-from .format_utils import pretty_print_projects
 
 load_dotenv()
 
 OPENPROJECT_URL = os.environ["OPENPROJECT_URL"]
-API_KEY = os.environ["OPENPROJECT_KEY"]
+API_KEY = os.environ["OPENPROJECT_API_KEY"]
 
 
 def get_projects(api_key, page_size=100):

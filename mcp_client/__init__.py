@@ -1,0 +1,1 @@
+#GigaChat(verify_ssl_certs=False, scope="GIGACHAT_API_B2B", model="GigaChat-2-Max")
