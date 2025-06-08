@@ -142,3 +142,10 @@ def create_task(api_key, project_id, subject, description=None, type_id=1, statu
         print(f"Не удалось декодировать: {response.text}")
 
     return None
+
+
+if __name__=="__main__":
+    from openproject.format_utils import pretty_projects
+    kkk = "1427c8c92a9b9175671ebcf2460276dd2e9c5891627af372eb61a645380a082c"
+    prj = pretty_projects(get_projects(kkk))
+    print("\n".join(prj))

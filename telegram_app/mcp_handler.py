@@ -7,17 +7,26 @@ from langchain_gigachat import GigaChat
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
+from langgraph.checkpoint.memory import InMemorySaver
+import yaml
 load_dotenv()
 
 # Динамически определяем корень проекта.
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
+prompts_path = PROJECT_ROOT / "prompts.yaml"
 SERVER_MODULE_NAME = "mcp_server.openproject_server"
+
+with open(prompts_path, 'r', encoding='utf-8') as file:
+    data = yaml.safe_load(file)
+
+system_prompt = data["system_prompt"]
+
 
 
 model = GigaChat(model="GigaChat-2-Max")
+checkpointer = InMemorySaver()
 
-
-async def run_mcp_agent(api_key: str, query: str) -> str:
+async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
     """
     Запускает MCP сессию с агентом для выполнения одного запроса.
 
@@ -42,9 +51,12 @@ async def run_mcp_agent(api_key: str, query: str) -> str:
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 tools = await load_mcp_tools(session)
-                agent = create_react_agent(model, tools)
-
-                response = await agent.ainvoke({"messages": [{"role": "user", "content": query}]})
+                agent = create_react_agent(model, tools, checkpointer=checkpointer)
+                config = {"configurable": {"thread_id": thread_id}}
+                response = await agent.ainvoke({"messages": [{"role": "user", "content": query}]},
+                                               config=config)
+                # TODO: почему то при передачи system prompt падает с ошибкой.
+                #       и вообще етот  create_react_agent мне не особо нравится
 
                 final_content = "Не удалось извлечь ответ."
                 if isinstance(response, dict) and "messages" in response and response["messages"]:

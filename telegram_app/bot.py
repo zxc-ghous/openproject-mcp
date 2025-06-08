@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Состояния для ConversationHandler
 GET_API_KEY = 0
 
-
+# TODO: разделить логирование ТГ бота и MCP клиента
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Начинает диалог сбора API ключа."""
     user = update.effective_user
@@ -57,6 +57,7 @@ async def handle_api_key(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает обычные текстовые сообщения как запросы к MCP агенту."""
     user = update.effective_user
+    thread_id = str(user.id)
     query = update.message.text
     logger.info(f"Получен запрос от {user.id}: '{query}'")
 
@@ -67,9 +68,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
-    await update.message.reply_text("⚙️ Обрабатываю ваш запрос...")
-    response_text = await mcp_handler.run_mcp_agent(api_key, query)
-    await update.message.reply_text(response_text)
+    response_bot_text = await update.message.reply_text("⚙️ Обрабатываю ваш запрос...")
+    response_text = await mcp_handler.run_mcp_agent(api_key, query, thread_id)
+    await response_bot_text.edit_text(response_text)
+
 
 
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
