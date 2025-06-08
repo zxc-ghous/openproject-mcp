@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OPENPROJECT_URL = os.environ["OPENPROJECT_URL"]
-API_KEY = os.environ["OPENPROJECT_API_KEY"]
 
 
 def get_projects(api_key, page_size=100):
@@ -46,7 +45,8 @@ def get_projects(api_key, page_size=100):
             all_projects.extend(current_page_projects)
 
             # В рабочем боте эти print'ы можно убрать или заменить на логирование
-            print(f"Получено {len(current_page_projects)} проектов на странице (offset: {offset}). Всего получено: {len(all_projects)}")
+            print(
+                f"Получено {len(current_page_projects)} проектов на странице (offset: {offset}). Всего получено: {len(all_projects)}")
 
             if len(current_page_projects) < page_size or len(all_projects) >= total_projects:
                 break
@@ -73,7 +73,7 @@ def get_projects(api_key, page_size=100):
 
     return all_projects
 
-
+# TODO: добавить назначение ответственных и срок выполнения задачи
 def create_task(api_key, project_id, subject, description=None, type_id=1, status_id=1, priority_id=2):
     """
     Создает новую задачу (Work Package) в OpenProject в указанном проекте,
@@ -142,21 +142,3 @@ def create_task(api_key, project_id, subject, description=None, type_id=1, statu
         print(f"Не удалось декодировать: {response.text}")
 
     return None
-
-if __name__=="__main__":
-    TARGET_PROJECT_ID = 50
-    #pretty_print_projects(get_projects(API_KEY, 50))
-    task_subject = f"Тестовая задача от Python"
-    task_description = "Эта задача создана с помощью скрипта Python, использующего переменные окружения для URL и API ключа."
-
-    new_work_package = create_task(
-        API_KEY,
-        TARGET_PROJECT_ID,
-        task_subject,
-        task_description
-    )
-    if new_work_package:
-        print(f"Задача успешно создана! ID: {new_work_package.get('id')}")
-        print(f"Ссылка: {OPENPROJECT_URL}{new_work_package.get('_links', {}).get('self', {}).get('href')}")
-    else:
-        print("Не удалось создать задачу.")

@@ -37,7 +37,7 @@ async def list_projects() -> str:
 
 
 @mcp.tool()
-async def new_task(project_id: int, subject: str, description: str | None = None) -> str:
+async def new_task(project_id: int, subject: str, description: str = None) -> str:
     """
     Создает новую задачу (work package) в указанном проекте OpenProject.
     Ключ API определяется автоматически из контекста сессии.
@@ -68,7 +68,6 @@ async def new_task(project_id: int, subject: str, description: str | None = None
 
 if __name__ == "__main__":
     print("Инициализация MCP сервера для OpenProject...")
-
     # --- ЗАГРУЗКА КОНТЕКСТА ---
     # Сервер считывает ключ API из переменной окружения.
     # Ваш Telegram-бот должен будет установить эту переменную перед запуском этого скрипта.

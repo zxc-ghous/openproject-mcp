@@ -1,3 +1,4 @@
+# TODO: добавить вывод статуса, типо по плану или нет
 def pretty_projects(projects):
     formatted_projects = []
     for project in projects:
