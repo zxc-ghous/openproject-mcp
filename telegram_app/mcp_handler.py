@@ -9,7 +9,7 @@ from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import InMemorySaver
 import yaml
-load_dotenv()
+#load_dotenv()
 
 # Динамически определяем корень проекта.
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()

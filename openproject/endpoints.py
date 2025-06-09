@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 from openproject.format_utils import convert_hours_to_iso8601_duration
 from datetime import date
 
-load_dotenv()
+#load_dotenv()
 
-OPENPROJECT_URL = os.environ["OPENPROJECT_URL"]
+OPENPROJECT_URL = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
 def get_projects(api_key, page_size=100):
