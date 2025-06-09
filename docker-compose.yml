@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  telegram-bot-openproject:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env  # Загрузка переменных среды из файла .env
+    restart: unless-stopped  # Автоматический перезапуск при сбоях
+    # volumes:  # Раскомментируйте для разработки, чтобы монтировать код
+    #   - .:/app
+    tty: true  # Для корректной работы с Python
+    stdin_open: true  # Для интерактивных приложений
