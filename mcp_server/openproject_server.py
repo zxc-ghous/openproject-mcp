@@ -7,7 +7,7 @@ from mcp.server.fastmcp import FastMCP
 # --- Контекст Пользователя ---
 # Эта переменная будет хранить API ключ, полученный из окружения.
 # В реальном приложении здесь мог бы быть целый класс для управления сессией.
-USER_API_KEY = None
+USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
 
 # Инициализируем MCP сервер с именем 'openproject'
 mcp = FastMCP("openproject")
