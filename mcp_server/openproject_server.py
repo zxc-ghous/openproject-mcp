@@ -4,10 +4,7 @@ import os
 import json
 from mcp.server.fastmcp import FastMCP
 
-# --- Контекст Пользователя ---
-# Эта переменная будет хранить API ключ, полученный из окружения.
-# В реальном приложении здесь мог бы быть целый класс для управления сессией.
-USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
+
 
 # Инициализируем MCP сервер с именем 'openproject'
 mcp = FastMCP("openproject")
@@ -18,8 +15,9 @@ async def list_projects() -> str:
     """
     Получает список всех доступных проектов из OpenProject для текущего пользователя.
     """
+    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
-        return "Ошибка: Ключ API не настроен на сервере. Запуск невозможен."
+        return "Ошибка: Ключ API не настроен. Запуск невозможен."
 
     print("MCP Tool: Вызов list_projects...")
     projects = get_projects(api_key=USER_API_KEY)
@@ -47,8 +45,9 @@ async def new_task(project_id: int, subject: str, description: str = None) -> st
         subject: Название (заголовок) задачи.
         description: (Опционально) Полное описание задачи.
     """
+    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
-        return "Ошибка: Ключ API не настроен на сервере. Запуск невозможен."
+        return "Ошибка: Ключ API не настроен. Запуск невозможен."
 
     print(f"MCP Tool: Вызов new_task для проекта ID {project_id} с заголовком '{subject}'")
     task_result = create_task(
@@ -77,8 +76,9 @@ async def list_project_tasks(project_id: int) -> str:
     Returns:
         str: Отформатированная строка со списком задач проекта или сообщение об ошибке/отсутствии задач.
     """
+    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
-        return "Ошибка: Ключ API не настроен на сервере. Запуск невозможен."
+        return "Ошибка: Ключ API не настроен. Запуск невозможен."
 
     print(f"MCP Tool: Вызов list_project_tasks для проекта ID: {project_id}...")
     tasks = get_project_tasks(api_key=USER_API_KEY, project_id=project_id)
@@ -108,8 +108,9 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
     Returns:
         str: Сообщение о результате регистрации времени.
     """
+    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
-        return "Ошибка: Ключ API не настроен на сервере. Запуск невозможен."
+        return "Ошибка: Ключ API не настроен. Запуск невозможен."
 
     print(f"MCP Tool: Вызов log_time для задачи ID: {task_id}, время: {hours} ч, комментарий: '{comment}'...")
 
@@ -127,19 +128,14 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
 
 if __name__ == "__main__":
     print("Инициализация MCP сервера для OpenProject...")
-    # --- ЗАГРУЗКА КОНТЕКСТА ---
-    # Сервер считывает ключ API из переменной окружения.
-    # Ваш Telegram-бот должен будет установить эту переменную перед запуском этого скрипта.
+    # Здесь можно оставить проверку, но она уже не будет влиять на работу инструментов
+    # так как каждый инструмент будет считывать переменную окружения самостоятельно.
     api_key_from_env = os.getenv("OPENPROJECT_API_KEY")
 
     if not api_key_from_env:
-        print("КРИТИЧЕСКАЯ ОШИБКА: Переменная окружения OPENPROJECT_API_KEY не установлена.")
-        print("Сервер не может работать без API ключа пользователя.")
-        exit(1)  # Завершаем работу, если ключ не предоставлен
+        print("Внимание: Переменная окружения OPENPROJECT_API_KEY не установлена на этапе запуска сервера. Это нормально, если ключ передается через параметры запуска MCP клиента.")
+    else:
+        print(f"Контекст пользователя успешно загружен. API ключ '...{api_key_from_env[-4:]}' установлен.")
 
-    USER_API_KEY = api_key_from_env
-    print(f"Контекст пользователя успешно загружен. API ключ '...{USER_API_KEY[-4:]}' установлен.")
-
-    # Запускаем сервер для работы через стандартные потоки ввода-вывода (stdio)
     print("Запуск MCP сервера...")
     mcp.run(transport='stdio')
