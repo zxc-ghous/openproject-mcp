@@ -7,7 +7,7 @@ from datetime import date
 
 #load_dotenv()
 
-OPENPROJECT_URL = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
 
 
 def get_projects(api_key, page_size=100):

@@ -18,7 +18,7 @@ async def list_projects() -> str:
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         return "Ошибка: Ключ API не настроен. Запуск невозможен."
-
+    print(f"DEBUG: API ключ в инструменте (последние 4 символа): {USER_API_KEY[-4:]}")
     print("MCP Tool: Вызов list_projects...")
     projects = get_projects(api_key=USER_API_KEY)
 
