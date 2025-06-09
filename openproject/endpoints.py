@@ -9,7 +9,7 @@ import logging
 #load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+OPENPROJECT_URL = os.getenv("OPENPROJECT_URL", 'https://openproject.siberianai.ru')
 if not OPENPROJECT_URL:
     logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
 else:
