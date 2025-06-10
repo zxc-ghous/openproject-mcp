@@ -6,11 +6,16 @@ from mcp.client.stdio import stdio_client
 from langchain_gigachat import GigaChat
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
-from dotenv import load_dotenv
 from langgraph.checkpoint.memory import InMemorySaver
 import yaml
-#load_dotenv()
+import os
+import logging
+from dotenv import load_dotenv
+load_dotenv()
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
 # Динамически определяем корень проекта.
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
 prompts_path = PROJECT_ROOT / "prompts.yaml"
@@ -21,10 +26,9 @@ with open(prompts_path, 'r', encoding='utf-8') as file:
 
 system_prompt = data["system_prompt"]
 
-
-
-model = GigaChat(model="GigaChat-2-Max")
+model = GigaChat(model="GigaChat-2-Max", timeout=120)
 checkpointer = InMemorySaver()
+
 
 async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
     """
@@ -44,14 +48,17 @@ async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
         command="python",
         args=["-m", SERVER_MODULE_NAME],
         cwd=str(PROJECT_ROOT),
-        env={"OPENPROJECT_API_KEY": api_key},
+        env={"OPENPROJECT_API_KEY": api_key,
+             "OPENPROJECT_URL": OPENPROJECT_URL},
     )
     try:
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 tools = await load_mcp_tools(session)
-                agent = create_react_agent(model, tools, checkpointer=checkpointer)
+                agent = create_react_agent(model, tools,
+                                           checkpointer=checkpointer,
+                                           prompt=system_prompt)
                 config = {"configurable": {"thread_id": thread_id}}
                 response = await agent.ainvoke({"messages": [{"role": "user", "content": query}]},
                                                config=config)
@@ -66,5 +73,5 @@ async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
                 return final_content
 
     except Exception as e:
-        print(f"Критическая ошибка в MCP сессии: {e}")
+        logger.error(f"Критическая ошибка в MCP сессии: {e}")
         return f"К сожалению, произошла внутренняя ошибка при обработке вашего запроса. Попробуйте позже.\n\nДетали: {e}"

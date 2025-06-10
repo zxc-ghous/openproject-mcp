@@ -3,7 +3,11 @@ from openproject import get_projects, create_task, pretty_projects, \
 import os
 import json
 from mcp.server.fastmcp import FastMCP
-
+import logging
+from dotenv import load_dotenv
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 # Инициализируем MCP сервер с именем 'openproject'
@@ -23,6 +27,7 @@ async def list_projects() -> str:
     projects = get_projects(api_key=USER_API_KEY)
 
     if projects is None:
+        logger.error(f"Не удалось получить список проектов")
         return "Не удалось получить список проектов. Проверьте лог сервера для деталей."
 
     if not projects:
@@ -128,14 +133,5 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
 
 if __name__ == "__main__":
     print("Инициализация MCP сервера для OpenProject...")
-    # Здесь можно оставить проверку, но она уже не будет влиять на работу инструментов
-    # так как каждый инструмент будет считывать переменную окружения самостоятельно.
-    api_key_from_env = os.getenv("OPENPROJECT_API_KEY")
-
-    if not api_key_from_env:
-        print("Внимание: Переменная окружения OPENPROJECT_API_KEY не установлена на этапе запуска сервера. Это нормально, если ключ передается через параметры запуска MCP клиента.")
-    else:
-        print(f"Контекст пользователя успешно загружен. API ключ '...{api_key_from_env[-4:]}' установлен.")
-
     print("Запуск MCP сервера...")
     mcp.run(transport='stdio')

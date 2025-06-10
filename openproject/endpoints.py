@@ -1,19 +1,18 @@
 import os
 import requests
 import json
-from dotenv import load_dotenv
 from openproject.format_utils import convert_hours_to_iso8601_duration
 from datetime import date
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 
-#load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-OPENPROJECT_URL = os.getenv("OPENPROJECT_URL", 'https://openproject.siberianai.ru')
+OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
 if not OPENPROJECT_URL:
     logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
-else:
-    logger.info(f"Переменная окружения OPENPROJECT_URL {OPENPROJECT_URL}")
+
 
 def get_projects(api_key, page_size=100):
     """
