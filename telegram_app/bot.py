@@ -1,5 +1,7 @@
 import os
 import logging
+
+import telegram.error
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 from telegram.constants import ParseMode
@@ -7,6 +9,8 @@ from telegram.constants import ParseMode
 # Импортируем наши модули
 from . import database
 from . import mcp_handler
+from dotenv import load_dotenv
+load_dotenv()
 
 # Настройка логирования
 logging.basicConfig(
@@ -60,19 +64,20 @@ async def handle_api_key(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user = update.effective_user
     api_key = update.message.text.strip()
 
-    if len(api_key) < 20:  # Простая проверка
+    if len(api_key) == 64 and all(c in '0123456789abcdefABCDEF' for c in api_key):
+        database.save_api_key(user.id, api_key)
+        logger.info(f"Сохранен API ключ для пользователя {user.id}.")
+
         await update.message.reply_text(
-            "Это не похоже на API ключ. Пожалуйста, проверьте и отправьте снова, или отмените с помощью /cancel.")
+            "✅ Ваш API ключ успешно сохранен!\n\n"
+            "Теперь вы можете отправлять мне запросы. Например: 'покажи все мои проекты'."
+        )
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text(
+            "Это не похоже на корректный API ключ OpenProject. "
+        )
         return GET_API_KEY
-
-    database.save_api_key(user.id, api_key)
-    logger.info(f"Сохранен API ключ для пользователя {user.id}.")
-
-    await update.message.reply_text(
-        "✅ Ваш API ключ успешно сохранен!\n\n"
-        "Теперь вы можете отправлять мне запросы. Например: 'покажи все мои проекты'."
-    )
-    return ConversationHandler.END
 
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -89,9 +94,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
-    response_bot_text = await update.message.reply_text("⚙️ Обрабатываю ваш запрос...")
+    processing_message = await update.message.reply_markdown_v2("⚙️ Обрабатываю ваш запрос")
     response_text = await mcp_handler.run_mcp_agent(api_key, query, thread_id)
-    await response_bot_text.edit_text(response_text)
+    try:
+        await processing_message.edit_text(response_text, parse_mode=ParseMode.MARKDOWN_V2)
+    except telegram.error.BadRequest as e:
+        logger.error(f"Ошибка форматирования {e}")
+        await processing_message.edit_text(response_text)
 
 
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
