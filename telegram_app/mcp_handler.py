@@ -62,8 +62,6 @@ async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
                 config = {"configurable": {"thread_id": thread_id}}
                 response = await agent.ainvoke({"messages": [{"role": "user", "content": query}]},
                                                config=config)
-                # TODO: почему то при передачи system prompt падает с ошибкой.
-                #       и вообще етот  create_react_agent мне не особо нравится
 
                 final_content = "Не удалось извлечь ответ."
                 if isinstance(response, dict) and "messages" in response and response["messages"]:

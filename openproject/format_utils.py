@@ -92,6 +92,15 @@ def pretty_tasks(tasks: list) -> str:
     return "\n".join(formatted_output)
 
 
+def pretty_spent_time(report: dict):
+    formated = []
+    for user, data in report.items():
+        formated.append(f"  {user}: Всего часов: {data['total_hours']:.2f}")
+        for project, hours in data['projects_data'].items():
+            formated.append(f"    - {project}: {hours:.2f} часов")
+    return "\n".join(formated)
+
+
 def convert_hours_to_iso8601_duration(hours: float) -> str:
     """
     Конвертирует часы (float) в формат длительности ISO 8601 (например, PT2H30M).
@@ -124,3 +133,37 @@ def convert_hours_to_iso8601_duration(hours: float) -> str:
         return "P" + "T" + "".join(duration_parts)
     else:
         return "PT0S"
+
+def convert_iso8601_duration_to_hours(iso_duration: str) -> float:
+    """
+    Преобразует строку длительности в формате ISO 8601 (например, "PT5H", "PT2H30M")
+    в количество часов (float).
+
+    Args:
+        iso_duration (str): Строка длительности в формате ISO 8601.
+
+    Returns:
+        float: Количество часов.
+
+    Raises:
+        ValueError: Если формат строки не поддерживается.
+    """
+    if not iso_duration.startswith("PT"):
+        raise ValueError("Неверный формат ISO 8601 Duration. Должен начинаться с 'PT'.")
+
+    duration_str = iso_duration[2:] # Удаляем "PT"
+
+    hours = 0.0
+    minutes = 0.0
+
+    # Разбираем часы
+    hour_match = re.search(r'(\d+)H', duration_str)
+    if hour_match:
+        hours = float(hour_match.group(1))
+
+    # Разбираем минуты
+    minute_match = re.search(r'(\d+)M', duration_str)
+    if minute_match:
+        minutes = float(minute_match.group(1))
+
+    return hours + (minutes / 60.0)

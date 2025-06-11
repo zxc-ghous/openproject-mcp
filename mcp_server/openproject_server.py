@@ -1,5 +1,5 @@
 from openproject import get_projects, create_task, pretty_projects, \
-    get_project_tasks, log_time_on_task, pretty_tasks
+    get_project_tasks, log_time_on_task, pretty_tasks, get_time_spent_report
 import os
 import json
 from mcp.server.fastmcp import FastMCP
@@ -130,6 +130,52 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
     else:
         return f"Не удалось зарегистрировать время ({hours} ч) на задачу ID: {task_id}. Проверьте лог сервера для деталей."
 
+@mcp.tool()
+async def get_time_report(start_date: str, end_date: str, project_id: int = None) -> str:
+    """
+    Получает отчет по затраченному времени в OpenProject за указанный промежуток.
+    Отчет может быть отфильтрован по конкретному проекту.
+
+    Args:
+        start_date (str): Начальная дата отчета в формате 'YYYY-MM-DD'.
+        end_date (str): Конечная дата отчета в формате 'YYYY-MM-DD'.
+        project_id (int, optional): ID проекта для фильтрации отчета. Если не указан,
+                                     возвращается общий отчет по всем проектам.
+                                     По умолчанию None.
+
+    Returns:
+        str: Отформатированное сообщение с отчетом о затраченном времени.
+    """
+    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
+    if not USER_API_KEY:
+        return "Ошибка: Ключ API OpenProject не настроен. Запуск инструмента невозможен."
+
+    print(f"MCP Tool: Вызов get_time_report для дат {start_date} - {end_date}, проект ID: {project_id if project_id else 'Все проекты'}...")
+
+    report_data = get_time_spent_report(api_key=USER_API_KEY, start_date=start_date, end_date=end_date, project_id=project_id)
+
+    if not report_data:
+        return "Не удалось получить отчет о затраченном времени. Проверьте лог сервера для деталей или убедитесь, что есть данные за выбранный период."
+
+    report_message = f"Отчет по затраченному времени с {start_date} по {end_date}"
+    if project_id:
+        report_message += f" для проекта ID: {project_id}"
+    report_message += ":\n"
+
+    if not report_data:
+        report_message += "За этот период не найдено записей о затраченном времени."
+    else:
+        for user, data in report_data.items():
+            report_message += f"\n  Пользователь: {user}"
+            report_message += f"\n    Всего часов: {data['total_hours']:.2f}"
+            if data['projects_data']:
+                report_message += "\n    Детализация по проектам:"
+                for project, hours in data['projects_data'].items():
+                    report_message += f"\n      - {project}: {hours:.2f} часов"
+            else:
+                report_message += "\n    Нет данных по проектам."
+
+    return report_message
 
 if __name__ == "__main__":
     print("Инициализация MCP сервера для OpenProject...")
