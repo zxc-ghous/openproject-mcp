@@ -50,9 +50,6 @@ def get_projects(api_key, page_size=100):
             current_page_projects = data.get("_embedded", {}).get("elements", [])
             all_projects.extend(current_page_projects)
 
-            # В рабочем боте эти print'ы можно убрать или заменить на логирование
-            print(
-                f"Получено {len(current_page_projects)} проектов на странице (offset: {offset}). Всего получено: {len(all_projects)}")
 
             if len(current_page_projects) < page_size or len(all_projects) >= total_projects:
                 break

@@ -94,13 +94,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
-    processing_message = await update.message.reply_markdown_v2("⚙️ Обрабатываю ваш запрос")
+    processing_message = await update.message.reply_text("⚙️ Обрабатываю ваш запрос")
     response_text = await mcp_handler.run_mcp_agent(api_key, query, thread_id)
     try:
-        await processing_message.edit_text(response_text, parse_mode=ParseMode.MARKDOWN_V2)
+        await processing_message.edit_text(response_text)
     except telegram.error.BadRequest as e:
         logger.error(f"Ошибка форматирования {e}")
-        await processing_message.edit_text(response_text)
+        await update.message.reply_text("Произошла непредвиденная ошибка, уже чиним")
 
 
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

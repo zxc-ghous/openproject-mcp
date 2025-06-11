@@ -11,6 +11,7 @@ import yaml
 import os
 import logging
 from openproject import get_projects, pretty_projects
+from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -58,8 +59,9 @@ async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 tools = await load_mcp_tools(session)
-                formated_system_prompt = system_prompt.format(projects="\n".join(
-                    pretty_projects(get_projects(api_key))))
+                formated_system_prompt = system_prompt.format(
+                    projects="\n".join(pretty_projects(get_projects(api_key))),
+                    current_date=datetime.today().strftime('%Y-%m-%d'))
                 agent = create_react_agent(model, tools,
                                            checkpointer=checkpointer,
                                            prompt=formated_system_prompt)
@@ -75,5 +77,5 @@ async def run_mcp_agent(api_key: str, query: str, thread_id: str) -> str:
                 return final_content
 
     except Exception as e:
-        logger.error(f"Критическая ошибка в MCP сессии: {e}")
+        logger.error(f"Критическая ошибка в MCP сессии: {e}",exc_info=True)
         return f"К сожалению, произошла внутренняя ошибка при обработке вашего запроса. Попробуйте позже.\n\nДетали: {e}"

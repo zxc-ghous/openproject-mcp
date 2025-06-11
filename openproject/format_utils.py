@@ -81,13 +81,13 @@ def pretty_tasks(tasks: list) -> str:
 
         formatted_output.append(
             f"---"
-            f"\n**ID задачи:** {task_id}"
-            f"\nНазвание задачи: {subject}"
-            f"\nОписание: {description}"
-            f"\nНазначенный: {assignee_name}"
-            f"\nЗатраченное время: {readable_spent_time}"
-            f"\nСтатус: {status_name}" # Добавленная строка
-            f"\n---"
+            f" \n ID задачи: {task_id}"
+            f" \n Название задачи: {subject}"
+            f" \n Описание: {description}"
+            f" \n Назначенный: {assignee_name}"
+            f" \n Затраченное время: {readable_spent_time}"
+            f" \n Статус: {status_name}" # Добавленная строка
+            f" \n ---"
         )
     return "\n".join(formatted_output)
 
