@@ -8,7 +8,7 @@ from telegram.constants import ParseMode
 
 # Импортируем наши модули
 from . import database
-from . import mcp_handler
+from .mcp_handler import AgentManager
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 # Состояния для ConversationHandler
 GET_API_KEY = 0
 
+# Создаем один глобальный экземпляр менеджера агентов
+# Этот объект будет жить на протяжении всей работы бота
+agent_manager = AgentManager()
 
 # TODO: разделить логирование ТГ бота и MCP клиента
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -95,7 +98,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     processing_message = await update.message.reply_text("⚙️ Обрабатываю ваш запрос")
-    response_text = await mcp_handler.run_mcp_agent(api_key, query, thread_id)
+    response_text = await agent_manager.process_message(api_key, query, thread_id)
     try:
         await processing_message.edit_text(response_text)
     except telegram.error.BadRequest as e:
@@ -110,15 +113,27 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ConversationHandler.END
 
 
+async def shutdown_sessions(app: Application) -> None:
+    """Корректно закрывает все сессии агентов при остановке бота."""
+    logger.info("Завершение работы бота. Закрытие сессий MCP...")
+    await agent_manager.shutdown()
+
 def main() -> None:
     """Основная функция для запуска бота."""
     telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not telegram_token:
-        print("ОШИБКА: Переменная окружения TELEGRAM_BOT_TOKEN не установлена.")
+        logger.critical("ОШИБКА: Переменная окружения TELEGRAM_BOT_TOKEN не установлена.")
         return
 
     database.init_db()
-    application = Application.builder().token(telegram_token).build()
+
+    # Используем post_shutdown для регистрации функции, которая будет вызвана при остановке
+    application = (
+        Application.builder()
+        .token(telegram_token)
+        .post_shutdown(shutdown_sessions)
+        .build()
+    )
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start_command)],
@@ -129,10 +144,12 @@ def main() -> None:
     )
 
     application.add_handler(conv_handler)
-    application.add_handler(CommandHandler("help", help_command))  # <-- Добавлена эта строка
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    print("Запуск телеграм бота...")
+    logger.info("Запуск телеграм бота...")
+    # run_polling() будет блокировать выполнение до остановки бота (например, по Ctrl+C)
+    # После остановки будет вызвана функция shutdown_sessions
     application.run_polling()
 
 
