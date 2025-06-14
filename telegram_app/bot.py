@@ -1,5 +1,4 @@
 import os
-import logging
 
 import telegram.error
 from telegram import Update
@@ -9,14 +8,13 @@ from telegram.constants import ParseMode
 # Импортируем наши модули
 from . import database
 from .mcp_handler import AgentManager
+from config import setup_logger
+from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
-# Настройка логирования
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+log_path = Path(r"logs/bot.log")
+logger = setup_logger('bot', log_path)
 
 # Состояния для ConversationHandler
 GET_API_KEY = 0

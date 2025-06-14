@@ -3,17 +3,18 @@ from openproject import get_projects, create_task, pretty_projects, \
 import os
 import json
 from mcp.server.fastmcp import FastMCP
-import logging
+from config import setup_logger
+from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+log_path = Path(r"logs/server.log")
+logger = setup_logger('server', log_path)
 
 
 # Инициализируем MCP сервер с именем 'openproject'
 mcp = FastMCP("openproject")
 
-
+# TODO: обернуть в try-except
 @mcp.tool()
 async def list_projects() -> str:
     """
@@ -26,7 +27,7 @@ async def list_projects() -> str:
     projects = get_projects(api_key=USER_API_KEY)
 
     if projects is None:
-        logger.error(f"Не удалось получить список проектов")
+        logger.error(f"Не удалось получить список проектов",exc_info=True)
         return "Не удалось получить список проектов. Проверьте лог сервера для деталей."
 
     if not projects:
@@ -66,6 +67,7 @@ async def new_task(project_id: int, subject: str, description: str = None) -> st
         task_subject = task_result.get('subject')
         return f"Задача '{task_subject}' успешно создана с ID: {task_id}."
     else:
+        logger.error(f"Не удалось создать задачу '{subject}' в проекте {project_id}",exc_info=True)
         return f"Не удалось создать задачу '{subject}' в проекте {project_id}. Проверьте лог сервера."
 
 
@@ -88,6 +90,7 @@ async def list_project_tasks(project_id: int) -> str:
     tasks = get_project_tasks(api_key=USER_API_KEY, project_id=project_id)
 
     if tasks is None:
+        logger.error(f"Не удалось получить список задач для проекта ID: {project_id}.", exc_info=True)
         return f"Не удалось получить список задач для проекта ID: {project_id}. Проверьте лог сервера для деталей."
 
     if not tasks:
@@ -127,6 +130,7 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
     if result:
         return f"Время успешно зарегистрировано: {hours} ч на задачу ID: {task_id}."
     else:
+        logger.error(f"Не удалось зарегистрировать время на задачу ID: {task_id}", exc_info=True)
         return f"Не удалось зарегистрировать время ({hours} ч) на задачу ID: {task_id}. Проверьте лог сервера для деталей."
 
 @mcp.tool()
@@ -154,6 +158,7 @@ async def get_time_report(start_date: str, end_date: str, project_id: int = None
     report_data = get_time_spent_report(api_key=USER_API_KEY, start_date=start_date, end_date=end_date, project_id=project_id)
 
     if not report_data:
+        logger.error(f"Не удалось получить отчет о затраченном времени.", exc_info=True)
         return "Не удалось получить отчет о затраченном времени. Проверьте лог сервера для деталей или убедитесь, что есть данные за выбранный период."
 
     report_message = f"Отчет по затраченному времени с {start_date} по {end_date}"
