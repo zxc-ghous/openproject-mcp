@@ -13,14 +13,14 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from openproject import get_projects, pretty_projects
 from datetime import datetime
+from config import setup_logger
+from pathlib import Path
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
-# --- Конфигурация ---
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+log_path = Path(r"logs/client.log")
+logger = setup_logger('client', log_path)
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
 prompts_path = PROJECT_ROOT / "prompts.yaml"

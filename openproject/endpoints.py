@@ -76,7 +76,7 @@ def get_projects(api_key, page_size=100):
 
     return all_projects
 
-# TODO: добавить назначение ответственных и срок выполнения задачи
+
 def create_task(api_key, project_id, subject, description=None, type_id=1, status_id=1, priority_id=2):
     """
     Создает новую задачу (Work Package) в OpenProject в указанном проекте,

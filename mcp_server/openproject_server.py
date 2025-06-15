@@ -14,7 +14,7 @@ logger = setup_logger('server', log_path)
 # Инициализируем MCP сервер с именем 'openproject'
 mcp = FastMCP("openproject")
 
-# TODO: обернуть в try-except
+
 @mcp.tool()
 async def list_projects() -> str:
     """
@@ -43,8 +43,6 @@ async def list_projects() -> str:
 async def new_task(project_id: int, subject: str, description: str = None) -> str:
     """
     Создает новую задачу (work package) в указанном проекте OpenProject.
-    Ключ API определяется автоматически из контекста сессии.
-
     Args:
         project_id: ID проекта, в котором нужно создать задачу.
         subject: Название (заголовок) задачи.

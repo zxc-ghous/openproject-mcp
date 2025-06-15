@@ -23,7 +23,7 @@ GET_API_KEY = 0
 # Этот объект будет жить на протяжении всей работы бота
 agent_manager = AgentManager()
 
-# TODO: разделить логирование ТГ бота и MCP клиента
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет сообщение о возможностях бота."""
     help_text = (
