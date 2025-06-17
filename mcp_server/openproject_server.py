@@ -27,7 +27,7 @@ async def list_projects() -> str:
     if not OPENPROJECT_URL:
         logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info("MCP Tool: Вызов list_projects...")
-    projects = get_projects(api_key=USER_API_KEY)
+    projects = get_projects(api_key=USER_API_KEY, OPENPROJECT_URL=OPENPROJECT_URL)
 
     if projects is None:
         logger.error(f"Не удалось получить список проектов",exc_info=True)
@@ -60,6 +60,7 @@ async def new_task(project_id: int, subject: str, description: str = None) -> st
     logger.info(f"MCP Tool: Вызов new_task для проекта ID {project_id} с заголовком '{subject}'")
     task_result = create_task(
         api_key=USER_API_KEY,
+        OPENPROJECT_URL=OPENPROJECT_URL,
         project_id=project_id,
         subject=subject,
         description=description
@@ -92,7 +93,7 @@ async def list_project_tasks(project_id: int) -> str:
     if not OPENPROJECT_URL:
         logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info(f"MCP Tool: Вызов list_project_tasks для проекта ID: {project_id}...")
-    tasks = get_project_tasks(api_key=USER_API_KEY, project_id=project_id)
+    tasks = get_project_tasks(api_key=USER_API_KEY, OPENPROJECT_URL=OPENPROJECT_URL, project_id=project_id)
 
     if tasks is None:
         logger.error(f"Не удалось получить список задач для проекта ID: {project_id}.", exc_info=True)
@@ -132,7 +133,7 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
     if hours < 0:
         return "Ошибка: Нельзя зарегистрировать отрицательное время."
 
-    result = log_time_on_task(api_key=USER_API_KEY, task_id=task_id, hours=hours, comment=comment)
+    result = log_time_on_task(api_key=USER_API_KEY, OPENPROJECT_URL=OPENPROJECT_URL, task_id=task_id, hours=hours, comment=comment)
 
     if result:
         return f"Время успешно зарегистрировано: {hours} ч на задачу ID: {task_id}."
@@ -164,7 +165,7 @@ async def get_time_report(start_date: str, end_date: str, project_id: int = None
         logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info(f"MCP Tool: Вызов get_time_report для дат {start_date} - {end_date}, проект ID: {project_id if project_id else 'Все проекты'}...")
 
-    report_data = get_time_spent_report(api_key=USER_API_KEY, start_date=start_date, end_date=end_date, project_id=project_id)
+    report_data = get_time_spent_report(api_key=USER_API_KEY, OPENPROJECT_URL=OPENPROJECT_URL, start_date=start_date, end_date=end_date, project_id=project_id)
 
     if not report_data:
         logger.error(f"Не удалось получить отчет о затраченном времени.", exc_info=True)

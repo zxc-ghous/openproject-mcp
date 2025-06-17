@@ -87,7 +87,7 @@ class AgentManager:
             logger.info(f"Loaded {len(tools)} tools for {thread_id}")
 
             # Получаем и форматируем системный промпт
-            projects_list = get_projects(api_key)
+            projects_list = get_projects(api_key, OPENPROJECT_URL=OPENPROJECT_URL)
             projects_str = "\n".join(pretty_projects(projects_list))
             formated_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(projects=projects_str,
                                                                    current_date=datetime.today().strftime('%Y-%m-%d'))

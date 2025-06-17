@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-def get_projects(api_key, page_size=100):
+def get_projects(api_key, OPENPROJECT_URL, page_size=100):
     """
     Получает список всех проектов из OpenProject, обрабатывая пагинацию,
     для указанного API ключа. OPENPROJECT_URL берется из переменной окружения.
@@ -23,9 +23,6 @@ def get_projects(api_key, page_size=100):
     Returns:
         list: Список словарей, представляющих проекты, или None в случае ошибки.
     """
-    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-    if not OPENPROJECT_URL:
-        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     all_projects = []
     offset = 0
     total_projects = None
@@ -77,7 +74,7 @@ def get_projects(api_key, page_size=100):
     return all_projects
 
 
-def create_task(api_key, project_id, subject, description=None, type_id=1, status_id=1, priority_id=2):
+def create_task(api_key, OPENPROJECT_URL, project_id, subject, description=None, type_id=1, status_id=1, priority_id=2):
     """
     Создает новую задачу (Work Package) в OpenProject в указанном проекте,
     для указанного API ключа. OPENPROJECT_URL берется из переменной окружения.
@@ -94,9 +91,6 @@ def create_task(api_key, project_id, subject, description=None, type_id=1, statu
     Returns:
         dict: Словарь с данными о созданной задаче, если успешно, иначе None.
     """
-    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-    if not OPENPROJECT_URL:
-        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/projects/{project_id}/work_packages"
 
     payload = {
@@ -149,7 +143,7 @@ def create_task(api_key, project_id, subject, description=None, type_id=1, statu
 
     return None
 
-def get_project_tasks(api_key: str, project_id: int) -> list | None:
+def get_project_tasks(api_key: str, OPENPROJECT_URL, project_id: int) -> list | None:
     """
     Получает список задач (Work Packages) для указанного проекта в OpenProject.
     OPENPROJECT_URL берется из переменной окружения.
@@ -162,9 +156,6 @@ def get_project_tasks(api_key: str, project_id: int) -> list | None:
         list: Список словарей, представляющих задачи проекта, если успешно,
               иначе None.
     """
-    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-    if not OPENPROJECT_URL:
-        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/projects/{project_id}/work_packages"
 
     headers = {
@@ -200,7 +191,7 @@ def get_project_tasks(api_key: str, project_id: int) -> list | None:
 
     return None
 
-def log_time_on_task(api_key: str, task_id: int, hours: float, comment: str = None) -> dict | None:
+def log_time_on_task(api_key: str, OPENPROJECT_URL, task_id: int, hours: float, comment: str = None) -> dict | None:
     """
     Регистрирует затраченное время на выполнение задачи (Work Package) в OpenProject.
     OPENPROJECT_URL берется из переменной окружения.
@@ -214,9 +205,6 @@ def log_time_on_task(api_key: str, task_id: int, hours: float, comment: str = No
     Returns:
         dict: Словарь с данными о созданной записи времени, если успешно, иначе None.
     """
-    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-    if not OPENPROJECT_URL:
-        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/time_entries"
 
     # Преобразование часов в формат ISO 8601 Duration
@@ -270,7 +258,7 @@ def log_time_on_task(api_key: str, task_id: int, hours: float, comment: str = No
 
     return None
 
-def get_time_spent_report(api_key: str, start_date: str, end_date: str, project_id: int = None) -> dict | None:
+def get_time_spent_report(api_key: str, OPENPROJECT_URL, start_date: str, end_date: str, project_id: int = None) -> dict | None:
     """
     Формирует отчет по затраченному времени за определенный промежуток времени,
     используя OpenProject API. OPENPROJECT_URL берется из переменной окружения.
@@ -303,9 +291,6 @@ def get_time_spent_report(api_key: str, start_date: str, end_date: str, project_
                   }
               }
     """
-    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-    if not OPENPROJECT_URL:
-        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/time_entries"
     report = {}
     all_time_entries = []
