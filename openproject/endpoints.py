@@ -9,9 +9,6 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-if not OPENPROJECT_URL:
-    logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
 
 
 def get_projects(api_key, page_size=100):
@@ -26,6 +23,9 @@ def get_projects(api_key, page_size=100):
     Returns:
         list: Список словарей, представляющих проекты, или None в случае ошибки.
     """
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     all_projects = []
     offset = 0
     total_projects = None
@@ -94,6 +94,9 @@ def create_task(api_key, project_id, subject, description=None, type_id=1, statu
     Returns:
         dict: Словарь с данными о созданной задаче, если успешно, иначе None.
     """
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/projects/{project_id}/work_packages"
 
     payload = {
@@ -159,6 +162,9 @@ def get_project_tasks(api_key: str, project_id: int) -> list | None:
         list: Список словарей, представляющих задачи проекта, если успешно,
               иначе None.
     """
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/projects/{project_id}/work_packages"
 
     headers = {
@@ -208,6 +214,9 @@ def log_time_on_task(api_key: str, task_id: int, hours: float, comment: str = No
     Returns:
         dict: Словарь с данными о созданной записи времени, если успешно, иначе None.
     """
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/time_entries"
 
     # Преобразование часов в формат ISO 8601 Duration
@@ -294,6 +303,9 @@ def get_time_spent_report(api_key: str, start_date: str, end_date: str, project_
                   }
               }
     """
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     url = f"{OPENPROJECT_URL}/api/v3/time_entries"
     report = {}
     all_time_entries = []

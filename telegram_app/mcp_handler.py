@@ -26,6 +26,8 @@ PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
 prompts_path = PROJECT_ROOT / "prompts.yaml"
 SERVER_MODULE_NAME = "mcp_server.openproject_server"
 OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+if not OPENPROJECT_URL:
+    logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
 
 with open(prompts_path, 'r', encoding='utf-8') as file:
     data = yaml.safe_load(file)
