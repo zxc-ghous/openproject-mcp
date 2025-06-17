@@ -6,9 +6,8 @@ services:
     env_file: .env
     restart: unless-stopped
     volumes:
-      - db_data:/app/telegram_app  # Монтируем папку с БД
-    # Для разработки можно добавить:
-    # - .:/app  # Hot-reload кода (но может конфликтовать с poetry)
+      - db_data:/app/telegram_app
+      - ./logs:/app/logs  # Монтируем директорию для логов с хоста
 
 volumes:
-  db_data:  # Именованный том для хранения БД
+  db_data:

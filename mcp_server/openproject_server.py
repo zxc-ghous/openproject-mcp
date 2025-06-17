@@ -23,6 +23,9 @@ async def list_projects() -> str:
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         return "Ошибка: Ключ API не настроен. Запуск невозможен."
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info("MCP Tool: Вызов list_projects...")
     projects = get_projects(api_key=USER_API_KEY)
 
@@ -51,7 +54,9 @@ async def new_task(project_id: int, subject: str, description: str = None) -> st
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         return "Ошибка: Ключ API не настроен. Запуск невозможен."
-
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info(f"MCP Tool: Вызов new_task для проекта ID {project_id} с заголовком '{subject}'")
     task_result = create_task(
         api_key=USER_API_KEY,
@@ -83,7 +88,9 @@ async def list_project_tasks(project_id: int) -> str:
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         return "Ошибка: Ключ API не настроен. Запуск невозможен."
-
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info(f"MCP Tool: Вызов list_project_tasks для проекта ID: {project_id}...")
     tasks = get_project_tasks(api_key=USER_API_KEY, project_id=project_id)
 
@@ -116,7 +123,9 @@ async def log_time(task_id: int, hours: float, comment: str = None) -> str:
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         return "Ошибка: Ключ API не настроен. Запуск невозможен."
-
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info(f"MCP Tool: Вызов log_time для задачи ID: {task_id}, время: {hours} ч, комментарий: '{comment}'...")
 
     # Проверка на отрицательное время
@@ -150,7 +159,9 @@ async def get_time_report(start_date: str, end_date: str, project_id: int = None
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         return "Ошибка: Ключ API OpenProject не настроен. Запуск инструмента невозможен."
-
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
     logger.info(f"MCP Tool: Вызов get_time_report для дат {start_date} - {end_date}, проект ID: {project_id if project_id else 'Все проекты'}...")
 
     report_data = get_time_spent_report(api_key=USER_API_KEY, start_date=start_date, end_date=end_date, project_id=project_id)
