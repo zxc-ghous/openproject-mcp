@@ -1,5 +1,5 @@
 import re
-
+import datetime
 
 def pretty_projects(projects):
     formatted_projects = []
@@ -20,7 +20,8 @@ def pretty_projects(projects):
 def pretty_tasks(tasks: list) -> str:
     """
     Преобразует список словарей задач OpenProject в удобочитаемый строковый формат,
-    включая название, описание, ответственного, затраченное время и статус.
+    включая название, описание, ответственного, затраченное время, статус,
+    дату начала и дату окончания.
 
     Args:
         tasks (list): Список словарей, представляющих задачи OpenProject,
@@ -37,19 +38,19 @@ def pretty_tasks(tasks: list) -> str:
     for task in tasks:
         # 1. ID задачи
         task_id = task.get('id', 'N/A')
-        # 1. Название задачи (subject)
+        # 2. Название задачи (subject)
         subject = task.get('subject', 'Без названия')
 
-        # 2. Описание (description)
+        # 3. Описание (description)
         description_raw = task.get('description', {}).get('raw', 'Без описания')
         description = description_raw.strip() if description_raw else 'Без описания'
 
-        # 3. Кто назначен ответственным (assignee)
+        # 4. Кто назначен ответственным (assignee)
         assignee_name = 'Не назначен'
         if '_links' in task and 'assignee' in task['_links'] and task['_links']['assignee']:
             assignee_name = task['_links']['assignee'].get('title', 'Неизвестно')
 
-        # 4. Сколько уже времени было затрачено (spentTime)
+        # 5. Сколько уже времени было затрачено (spentTime)
         spent_time_iso = task.get('spentTime', 'PT0S')
         readable_spent_time = "0 секунд" # Значение по умолчанию
 
@@ -73,11 +74,30 @@ def pretty_tasks(tasks: list) -> str:
         else:
             readable_spent_time = "Не указано"
 
-        # 5. Текущий статус задачи (status) - НОВАЯ ЧАСТЬ
+        # 6. Текущий статус задачи (status)
         status_name = 'Статус неизвестен'
         if '_links' in task and 'status' in task['_links'] and task['_links']['status']:
             status_name = task['_links']['status'].get('title', 'Статус неизвестен')
 
+        # 7. Дата начала задачи (startDate)
+        start_date_str = task.get('startDate')
+        if start_date_str:
+            try:
+                start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').strftime('%d.%m.%Y')
+            except ValueError:
+                start_date = 'Неверный формат даты'
+        else:
+            start_date = 'Не указана'
+
+        # 8. Дата окончания задачи (dueDate)
+        due_date_str = task.get('dueDate')
+        if due_date_str:
+            try:
+                due_date = datetime.datetime.strptime(due_date_str, '%Y-%m-%d').strftime('%d.%m.%Y')
+            except ValueError:
+                due_date = 'Неверный формат даты'
+        else:
+            due_date = 'Не указана'
 
         formatted_output.append(
             f"---"
@@ -86,7 +106,9 @@ def pretty_tasks(tasks: list) -> str:
             f" \n Описание: {description}"
             f" \n Назначенный: {assignee_name}"
             f" \n Затраченное время: {readable_spent_time}"
-            f" \n Статус: {status_name}" # Добавленная строка
+            f" \n Статус: {status_name}"
+            f" \n Дата начала: {start_date}" # Добавлено
+            f" \n Дата окончания: {due_date}" # Добавлено
             f" \n ---"
         )
     return "\n".join(formatted_output)

@@ -5,6 +5,7 @@ import requests
 import json
 import os
 from datetime import datetime, date
+from typing import Optional, List, Dict, Any
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -73,6 +74,103 @@ def get_projects(api_key, OPENPROJECT_URL, page_size=100):
 
     return all_projects
 
+
+def update_work_package_dates(
+        api_key: str,
+        OPENPROJECT_URL: str,
+        work_package_id: int,
+        start_date: str=None,
+        end_date: str=None
+):
+    """
+    Изменяет или удаляет (если передано "DELETE") начальную и/или конечную дату
+    задачи (Work Package) в OpenProject, используя lockVersion.
+
+    Args:
+        api_key (str): API ключ пользователя OpenProject.
+        OPENPROJECT_URL (str): Базовый URL OpenProject.
+        work_package_id (int): ID задачи, которую нужно изменить.
+        start_date (Optional[str]): Новая начальная дата в формате 'YYYY-MM-DD',
+                                      "DELETE" для удаления, или None для игнорирования.
+        end_date (Optional[str]): Новая конечная дата в формате 'YYYY-MM-DD',
+                                    "DELETE" для удаления, или None для игнорирования.
+
+    Returns:
+        Optional[Dict[str, Any]]: Словарь, представляющий обновленную задачу, если успешно,
+                                   иначе None.
+    """
+    # 1. Сначала получаем текущее состояние задачи, чтобы получить lockVersion
+    get_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    try:
+        get_response = requests.get(get_url, auth=("apikey", api_key), headers=headers)
+        get_response.raise_for_status()
+        current_work_package_data = get_response.json()
+        lock_version = current_work_package_data.get('lockVersion')
+
+        if lock_version is None:
+            print(f"Не удалось получить lockVersion для задачи ID: {work_package_id}. Обновление невозможно.")
+            return None
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"Ошибка HTTP при получении задачи для lockVersion: {http_err}")
+        print(f"Ответ сервера: {get_response.text}")
+        return None
+    except requests.exceptions.RequestException as req_err:
+        print(f"Произошла ошибка при получении задачи для lockVersion: {req_err}")
+        return None
+
+    # 2. Формируем тело PATCH запроса
+    update_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
+
+    payload: Dict[str, Any] = {
+        "lockVersion": lock_version
+    }
+
+    if start_date is not None:
+        if start_date == "DELETE":
+            # Чтобы удалить поле, просто не включаем его в payload или устанавливаем None
+            # Для OpenProject API, передача null/None для даты обычно удаляет ее
+            payload["startDate"] = None
+        else:
+            payload["startDate"] = start_date
+
+    if end_date is not None:
+        if end_date == "DELETE":
+            payload["dueDate"] = None  # Имя поля в API
+        else:
+            payload["dueDate"] = end_date  # Имя поля в API
+
+    # Если никаких изменений дат не запрошено, и при этом payload состоит только из lockVersion
+    if len(payload) == 1 and "lockVersion" in payload:
+        return "Не указаны даты для изменения или удаления. Никаких действий не выполнено."
+
+
+    try:
+        response = requests.patch(update_url, auth=("apikey", api_key), headers=headers, json=payload)
+        response.raise_for_status()  # Вызывает исключение для HTTP ошибок (4xx или 5xx)
+
+        data = response.json()
+        print(f"Успешно обновлена задача ID: {work_package_id}")
+        return data
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"Ошибка HTTP при обновлении задачи: {http_err}")
+        print(f"Ответ сервера: {response.text}")
+    except requests.exceptions.ConnectionError as conn_err:
+        print(f"Ошибка подключения: {conn_err}")
+    except requests.exceptions.Timeout as timeout_err:
+        print(f"Время ожидания запроса истекло: {timeout_err}")
+    except requests.exceptions.RequestException as req_err:
+        print(f"Произошла другая ошибка запроса: {req_err}")
+    except json.JSONDecodeError as json_err:
+        print(f"Ошибка декодирования JSON: {json_err}")
+        print(f"Не удалось декодировать: {response.text}")
+
+    return None
 
 def create_task(api_key, OPENPROJECT_URL, project_id, subject, description=None, type_id=1, status_id=1, priority_id=2):
     """
