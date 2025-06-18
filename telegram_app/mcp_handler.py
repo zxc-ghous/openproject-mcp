@@ -68,12 +68,17 @@ class AgentManager:
             if not OPENPROJECT_URL:
                 logger.error(
                     "Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
+
+            child_process_env = os.environ.copy()
+            child_process_env.update({
+                "OPENPROJECT_API_KEY": api_key,  # <--- Вот здесь используется ваш ключ из базы
+            })
             # Параметры для запуска дочернего процесса MCP-сервера
             server_params = StdioServerParameters(
                 command="python",
                 args=["-m", SERVER_MODULE_NAME],
                 cwd=str(PROJECT_ROOT),
-                env={"OPENPROJECT_API_KEY": api_key, "OPENPROJECT_URL": OPENPROJECT_URL},
+                env=child_process_env,
             )
 
             # Входим в контекст stdio_client и ClientSession с помощью exit_stack
