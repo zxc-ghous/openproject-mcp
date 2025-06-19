@@ -6,23 +6,26 @@ import json
 import os
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
+import aiohttp
+import asyncio
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def get_projects(api_key, OPENPROJECT_URL, page_size=100):
+async def get_projects(api_key, OPENPROJECT_URL, page_size=100):
     """
-    Получает список всех проектов из OpenProject, обрабатывая пагинацию,
-    для указанного API ключа. OPENPROJECT_URL берется из переменной окружения.
+    Асинхронно получает список всех проектов из OpenProject, обрабатывая пагинацию.
 
     Args:
         api_key (str): API ключ пользователя OpenProject.
-        page_size (int): Количество проектов на одной странице. Максимально рекомендуемое 100-250.
+        OPENPROJECT_URL (str): Базовый URL до OpenProject инстанса.
+        page_size (int): Количество проектов на одной странице.
 
     Returns:
-        list: Список словарей, представляющих проекты, или None в случае ошибки.
+        list: Список проектов (dict) или None в случае ошибки.
     """
     all_projects = []
     offset = 0
@@ -32,58 +35,52 @@ def get_projects(api_key, OPENPROJECT_URL, page_size=100):
         "Content-Type": "application/json"
     }
 
-    while True:
-        url = f"{OPENPROJECT_URL}/api/v3/projects?offset={offset}&pageSize={page_size}"
+    auth = aiohttp.BasicAuth("apikey", api_key)
 
-        try:
-            response = requests.get(url, auth=("apikey", api_key), headers=headers)
-            response.raise_for_status()
-            data = response.json()
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        while True:
+            url = f"{OPENPROJECT_URL}/api/v3/projects?offset={offset}&pageSize={page_size}"
 
-            if total_projects is None:
-                total_projects = data.get("total")
-                # В рабочем боте эти print'ы можно убрать или заменить на логирование
-                print(f"Всего проектов доступно: {total_projects} (для текущего пользователя).")
+            try:
+                async with session.get(url, timeout=30) as response:
+                    response.raise_for_status()
+                    data = await response.json()
 
-            current_page_projects = data.get("_embedded", {}).get("elements", [])
-            all_projects.extend(current_page_projects)
+                    if total_projects is None:
+                        total_projects = data.get("total")
+                        print(f"Всего проектов доступно: {total_projects} (для текущего пользователя).")
 
+                    current_page_projects = data.get("_embedded", {}).get("elements", [])
+                    all_projects.extend(current_page_projects)
 
-            if len(current_page_projects) < page_size or len(all_projects) >= total_projects:
-                break
+                    if len(current_page_projects) < page_size or len(all_projects) >= total_projects:
+                        break
 
-            offset += page_size
+                    offset += page_size
 
-        except requests.exceptions.HTTPError as http_err:
-            print(f"Ошибка HTTP при получении проектов: {http_err}")
-            print(f"Ответ сервера: {response.text}")
-            return None
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Ошибка подключения: {conn_err}")
-            return None
-        except requests.exceptions.Timeout as timeout_err:
-            print(f"Время ожидания запроса истекло: {timeout_err}")
-            return None
-        except requests.exceptions.RequestException as req_err:
-            print(f"Произошла другая ошибка: {req_err}")
-            return None
-        except json.JSONDecodeError as json_err:
-            print(f"Ошибка декодирования JSON: {json_err}")
-            print(f"Не удалось декодировать: {response.text}")
-            return None
+            except aiohttp.ClientResponseError as http_err:
+                print(f"HTTP ошибка: {http_err.status} — {http_err.message}")
+                return None
+            except aiohttp.ClientConnectorError as conn_err:
+                print(f"Ошибка подключения: {conn_err}")
+                return None
+            except asyncio.TimeoutError:
+                print("Время ожидания запроса истекло")
+                return None
+            except aiohttp.ClientError as req_err:
+                print(f"Общая ошибка клиента: {req_err}")
+                return None
+            except json.JSONDecodeError as json_err:
+                print(f"Ошибка декодирования JSON: {json_err}")
+                return None
 
     return all_projects
 
 
-def update_work_package_dates(
-        api_key: str,
-        OPENPROJECT_URL: str,
-        work_package_id: int,
-        start_date: str=None,
-        end_date: str=None
-):
+async def update_work_package_dates(api_key: str, OPENPROJECT_URL: str, work_package_id: int,
+                                    start_date: Optional[str] = None, end_date: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Изменяет или удаляет (если передано "DELETE") начальную и/или конечную дату
+    Асинхронно изменяет или удаляет (если передано "DELETE") начальную и/или конечную дату
     задачи (Work Package) в OpenProject, используя lockVersion.
 
     Args:
@@ -91,103 +88,101 @@ def update_work_package_dates(
         OPENPROJECT_URL (str): Базовый URL OpenProject.
         work_package_id (int): ID задачи, которую нужно изменить.
         start_date (Optional[str]): Новая начальная дата в формате 'YYYY-MM-DD',
-                                      "DELETE" для удаления, или None для игнорирования.
-        end_date (Optional[str]): Новая конечная дата в формате 'YYYY-MM-DD',
                                     "DELETE" для удаления, или None для игнорирования.
+        end_date (Optional[str]): Новая конечная дата в формате 'YYYY-MM-DD',
+                                  "DELETE" для удаления, или None для игнорирования.
 
     Returns:
-        Optional[Dict[str, Any]]: Словарь, представляющий обновленную задачу, если успешно,
-                                   иначе None.
+        Optional[Dict[str, Any]]: Обновлённая задача или None при ошибке.
     """
-    # 1. Сначала получаем текущее состояние задачи, чтобы получить lockVersion
-    get_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
     headers = {
         "Content-Type": "application/json"
     }
+    auth = aiohttp.BasicAuth("apikey", api_key)
 
-    try:
-        get_response = requests.get(get_url, auth=("apikey", api_key), headers=headers)
-        get_response.raise_for_status()
-        current_work_package_data = get_response.json()
-        lock_version = current_work_package_data.get('lockVersion')
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        get_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
+        try:
+            async with session.get(get_url, timeout=30) as get_response:
+                get_response.raise_for_status()
+                current_work_package_data = await get_response.json()
+                lock_version = current_work_package_data.get("lockVersion")
 
-        if lock_version is None:
-            print(f"Не удалось получить lockVersion для задачи ID: {work_package_id}. Обновление невозможно.")
+                if lock_version is None:
+                    print(f"Не удалось получить lockVersion для задачи ID: {work_package_id}. Обновление невозможно.")
+                    return None
+        except aiohttp.ClientResponseError as http_err:
+            print(f"Ошибка HTTP при получении задачи: {http_err.status} — {http_err.message}")
+            return None
+        except aiohttp.ClientConnectorError as conn_err:
+            print(f"Ошибка подключения: {conn_err}")
+            return None
+        except asyncio.TimeoutError:
+            print("Время ожидания запроса истекло")
+            return None
+        except aiohttp.ClientError as req_err:
+            print(f"Общая ошибка клиента: {req_err}")
+            return None
+        except json.JSONDecodeError as json_err:
+            print(f"Ошибка декодирования JSON: {json_err}")
             return None
 
-    except requests.exceptions.HTTPError as http_err:
-        print(f"Ошибка HTTP при получении задачи для lockVersion: {http_err}")
-        print(f"Ответ сервера: {get_response.text}")
-        return None
-    except requests.exceptions.RequestException as req_err:
-        print(f"Произошла ошибка при получении задачи для lockVersion: {req_err}")
-        return None
+        # Формируем тело PATCH запроса
+        payload: Dict[str, Any] = {
+            "lockVersion": lock_version
+        }
 
-    # 2. Формируем тело PATCH запроса
-    update_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
+        if start_date is not None:
+            payload["startDate"] = None if start_date == "DELETE" else start_date
 
-    payload: Dict[str, Any] = {
-        "lockVersion": lock_version
-    }
+        if end_date is not None:
+            payload["dueDate"] = None if end_date == "DELETE" else end_date
 
-    if start_date is not None:
-        if start_date == "DELETE":
-            # Чтобы удалить поле, просто не включаем его в payload или устанавливаем None
-            # Для OpenProject API, передача null/None для даты обычно удаляет ее
-            payload["startDate"] = None
-        else:
-            payload["startDate"] = start_date
+        if len(payload) == 1:
+            return "Не указаны даты для изменения или удаления. Никаких действий не выполнено."
 
-    if end_date is not None:
-        if end_date == "DELETE":
-            payload["dueDate"] = None  # Имя поля в API
-        else:
-            payload["dueDate"] = end_date  # Имя поля в API
+        update_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
+        try:
+            async with session.patch(update_url, json=payload, timeout=30) as response:
+                response.raise_for_status()
+                data = await response.json()
+                print(f"Успешно обновлена задача ID: {work_package_id}")
+                return data
+        except aiohttp.ClientResponseError as http_err:
+            print(f"Ошибка HTTP при обновлении задачи: {http_err.status} — {http_err.message}")
+            return None
+        except aiohttp.ClientConnectorError as conn_err:
+            print(f"Ошибка подключения: {conn_err}")
+            return None
+        except asyncio.TimeoutError:
+            print("Время ожидания запроса истекло")
+            return None
+        except aiohttp.ClientError as req_err:
+            print(f"Общая ошибка клиента: {req_err}")
+            return None
+        except json.JSONDecodeError as json_err:
+            print(f"Ошибка декодирования JSON: {json_err}")
+            return None
 
-    # Если никаких изменений дат не запрошено, и при этом payload состоит только из lockVersion
-    if len(payload) == 1 and "lockVersion" in payload:
-        return "Не указаны даты для изменения или удаления. Никаких действий не выполнено."
 
-
-    try:
-        response = requests.patch(update_url, auth=("apikey", api_key), headers=headers, json=payload)
-        response.raise_for_status()  # Вызывает исключение для HTTP ошибок (4xx или 5xx)
-
-        data = response.json()
-        print(f"Успешно обновлена задача ID: {work_package_id}")
-        return data
-
-    except requests.exceptions.HTTPError as http_err:
-        print(f"Ошибка HTTP при обновлении задачи: {http_err}")
-        print(f"Ответ сервера: {response.text}")
-    except requests.exceptions.ConnectionError as conn_err:
-        print(f"Ошибка подключения: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        print(f"Время ожидания запроса истекло: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        print(f"Произошла другая ошибка запроса: {req_err}")
-    except json.JSONDecodeError as json_err:
-        print(f"Ошибка декодирования JSON: {json_err}")
-        print(f"Не удалось декодировать: {response.text}")
-
-    return None
-
-def create_task(api_key, OPENPROJECT_URL, project_id, subject, description=None, type_id=1, status_id=1, priority_id=2):
+async def create_task(api_key: str, OPENPROJECT_URL: str, project_id: int, subject: str,
+                      description: Optional[str] = None, type_id: int = 1,
+                      status_id: int = 1, priority_id: int = 2) -> Optional[Dict[str, Any]]:
     """
-    Создает новую задачу (Work Package) в OpenProject в указанном проекте,
-    для указанного API ключа. OPENPROJECT_URL берется из переменной окружения.
+    Асинхронно создает новую задачу (Work Package) в OpenProject.
 
     Args:
         api_key (str): API ключ пользователя OpenProject.
+        OPENPROJECT_URL (str): Базовый URL OpenProject.
         project_id (int): ID проекта, в котором будет создана задача.
-        subject (str): Заголовок (название) задачи.
-        description (str, optional): Описание задачи. По умолчанию None.
-        type_id (int, optional): ID типа задачи. По умолчанию 1 (Task).
-        status_id (int, optional): ID статуса задачи. По умолчанию 1 (New).
-        priority_id (int, optional): ID приоритета задачи. По умолчанию 2 (Normal).
+        subject (str): Заголовок задачи.
+        description (str, optional): Описание задачи.
+        type_id (int): ID типа задачи.
+        status_id (int): ID статуса задачи.
+        priority_id (int): ID приоритета задачи.
 
     Returns:
-        dict: Словарь с данными о созданной задаче, если успешно, иначе None.
+        Optional[Dict[str, Any]]: Созданная задача или None при ошибке.
     """
     url = f"{OPENPROJECT_URL}/api/v3/projects/{project_id}/work_packages"
 
@@ -218,290 +213,257 @@ def create_task(api_key, OPENPROJECT_URL, project_id, subject, description=None,
         "Content-Type": "application/json"
     }
 
-    try:
-        response = requests.post(url, auth=("apikey", api_key), headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
+    auth = aiohttp.BasicAuth("apikey", api_key)
 
-        new_task = response.json()
-        print(f"Задача '{new_task.get('subject')}' успешно создана с ID: {new_task.get('id')}")
-        return new_task
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        try:
+            async with session.post(url, json=payload, timeout=30) as response:
+                response.raise_for_status()
+                new_task = await response.json()
+                print(f"Задача '{new_task.get('subject')}' успешно создана с ID: {new_task.get('id')}")
+                return new_task
 
-    except requests.exceptions.HTTPError as http_err:
-        print(f"Ошибка HTTP при создании задачи: {http_err}")
-        print(f"Ответ сервера: {response.text}")
-    except requests.exceptions.ConnectionError as conn_err:
-        print(f"Ошибка подключения: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        print(f"Время ожидания запроса истекло: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        print(f"Произошла другая ошибка: {req_err}")
-    except json.JSONDecodeError as json_err:
-        print(f"Ошибка декодирования JSON: {json_err}")
-        print(f"Не удалось декодировать: {response.text}")
+        except aiohttp.ClientResponseError as http_err:
+            print(f"Ошибка HTTP при создании задачи: {http_err.status} — {http_err.message}")
+        except aiohttp.ClientConnectorError as conn_err:
+            print(f"Ошибка подключения: {conn_err}")
+        except asyncio.TimeoutError:
+            print("Время ожидания запроса истекло")
+        except aiohttp.ClientError as req_err:
+            print(f"Общая ошибка клиента: {req_err}")
+        except json.JSONDecodeError as json_err:
+            print(f"Ошибка декодирования JSON: {json_err}")
+            return None
 
     return None
 
-def get_project_tasks(api_key: str, OPENPROJECT_URL, project_id: int) -> list | None:
+
+async def get_project_tasks(api_key: str, OPENPROJECT_URL: str, project_id: int) -> Optional[List[Dict[str, Any]]]:
     """
-    Получает список задач (Work Packages) для указанного проекта в OpenProject.
-    OPENPROJECT_URL берется из переменной окружения.
+    Асинхронно получает список задач (Work Packages) для указанного проекта в OpenProject.
 
     Args:
         api_key (str): API ключ пользователя OpenProject.
+        OPENPROJECT_URL (str): Базовый URL OpenProject.
         project_id (int): ID проекта, для которого нужно получить задачи.
 
     Returns:
         list: Список словарей, представляющих задачи проекта, если успешно,
-              иначе None.
+              или пустой список, если задач нет, или None при ошибке.
     """
     url = f"{OPENPROJECT_URL}/api/v3/projects/{project_id}/work_packages"
-
     headers = {
         "Content-Type": "application/json"
     }
+    auth = aiohttp.BasicAuth("apikey", api_key)
 
-    try:
-        response = requests.get(url, auth=("apikey", api_key), headers=headers)
-        response.raise_for_status() # Вызывает исключение для HTTP ошибок (4xx или 5xx)
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        try:
+            async with session.get(url, timeout=30) as response:
+                response.raise_for_status()
+                data = await response.json()
+                tasks = data.get('_embedded', {}).get('elements', [])
 
-        data = response.json()
-        tasks = data.get('_embedded', {}).get('elements', [])
+                if tasks:
+                    print(f"Успешно получен список из {len(tasks)} задач для проекта ID: {project_id}")
+                else:
+                    print(f"В проекте ID: {project_id} задачи не найдены.")
+                return tasks
 
-        if tasks:
-            print(f"Успешно получен список из {len(tasks)} задач для проекта ID: {project_id}")
-            return tasks
-        else:
-            print(f"В проекте ID: {project_id} задачи не найдены или произошла ошибка.")
-            return [] # Возвращаем пустой список, если задач нет
-
-    except requests.exceptions.HTTPError as http_err:
-        print(f"Ошибка HTTP при получении задач: {http_err}")
-        print(f"Ответ сервера: {response.text}")
-    except requests.exceptions.ConnectionError as conn_err:
-        print(f"Ошибка подключения: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        print(f"Время ожидания запроса истекло: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        print(f"Произошла другая ошибка запроса: {req_err}")
-    except json.JSONDecodeError as json_err:
-        print(f"Ошибка декодирования JSON: {json_err}")
-        print(f"Не удалось декодировать: {response.text}")
+        except aiohttp.ClientResponseError as http_err:
+            print(f"Ошибка HTTP при получении задач: {http_err.status} — {http_err.message}")
+        except aiohttp.ClientConnectorError as conn_err:
+            print(f"Ошибка подключения: {conn_err}")
+        except asyncio.TimeoutError:
+            print("Время ожидания запроса истекло")
+        except aiohttp.ClientError as req_err:
+            print(f"Общая ошибка клиента: {req_err}")
+        except json.JSONDecodeError as json_err:
+            print(f"Ошибка декодирования JSON: {json_err}")
+            return None
 
     return None
 
-def log_time_on_task(api_key: str, OPENPROJECT_URL, task_id: int, hours: float, comment: str = None) -> dict | None:
+
+async def log_time_on_task(
+    api_key: str,
+    OPENPROJECT_URL: str,
+    task_id: int,
+    hours: float,
+    comment: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """
-    Регистрирует затраченное время на выполнение задачи (Work Package) в OpenProject.
-    OPENPROJECT_URL берется из переменной окружения.
+    Асинхронно регистрирует затраченное время на выполнение задачи (Work Package) в OpenProject.
 
     Args:
         api_key (str): API ключ пользователя OpenProject.
+        OPENPROJECT_URL (str): Базовый URL OpenProject.
         task_id (int): ID задачи, на которую регистрируется время.
-        hours (float): Количество затраченных часов (может быть дробным, например, 2.5 для 2 часов 30 минут).
-        comment (str, optional): Комментарий к записи времени. По умолчанию None.
+        hours (float): Количество затраченных часов.
+        comment (str, optional): Комментарий к записи времени.
 
     Returns:
-        dict: Словарь с данными о созданной записи времени, если успешно, иначе None.
+        dict: Данные о созданной записи времени, или None при ошибке.
     """
     url = f"{OPENPROJECT_URL}/api/v3/time_entries"
 
-    # Преобразование часов в формат ISO 8601 Duration
+    # Преобразуем часы в ISO 8601 Duration
     try:
         iso_duration = convert_hours_to_iso8601_duration(hours)
-    except ValueError as val_err:
-        print(f"Ошибка при преобразовании времени: {val_err}")
+    except ValueError as ve:
+        print(f"Ошибка при преобразовании времени: {ve}")
         return None
 
-    payload = {
-        "spentOn": date.today().isoformat(), # Текущая дата в формате YYYY-MM-DD
+    payload: Dict[str, Any] = {
+        "spentOn": date.today().isoformat(),
         "hours": iso_duration,
         "_links": {
-            "workPackage": {
-                "href": f"/api/v3/work_packages/{task_id}"
-            }
-            # Для регистрации времени, OpenProject API обычно автоматически связывает запись
-            # с пользователем, чей API-ключ используется для аутентификации.
-            # Явное указание "_links.user" обычно не требуется, если ключ принадлежит пользователю.
+            "workPackage": {"href": f"/api/v3/work_packages/{task_id}"}
         }
     }
-
     if comment:
-        payload["comment"] = {
-            "raw": comment
-        }
+        payload["comment"] = {"raw": comment}
 
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
+    auth = aiohttp.BasicAuth("apikey", api_key)
 
-    try:
-        response = requests.post(url, auth=("apikey", api_key), headers=headers, data=json.dumps(payload))
-        response.raise_for_status() # Вызывает исключение для HTTP ошибок (4xx или 5xx)
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        try:
+            async with session.post(url, json=payload, timeout=30) as resp:
+                resp.raise_for_status()
+                entry = await resp.json()
+                print(f"Успешно зарегистрировано {hours}h на задаче {task_id}")
+                return entry
 
-        time_entry = response.json()
-        return time_entry
-
-    except requests.exceptions.HTTPError as http_err:
-        print(f"Ошибка HTTP при регистрации времени: {http_err}")
-        print(f"Ответ сервера: {response.text}")
-    except requests.exceptions.ConnectionError as conn_err:
-        print(f"Ошибка подключения: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        print(f"Время ожидания запроса истекло: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        print(f"Произошла другая ошибка: {req_err}")
-    except json.JSONDecodeError as json_err:
-        print(f"Ошибка декодирования JSON: {json_err}")
-        print(f"Не удалось декодировать: {response.text}")
+        except aiohttp.ClientResponseError as e:
+            print(f"HTTP ошибка при логировании времени: {e.status} — {e.message}")
+        except aiohttp.ClientConnectorError as e:
+            print(f"Ошибка подключения: {e}")
+        except asyncio.TimeoutError:
+            print("Время ожидания запроса истекло")
+        except aiohttp.ClientError as e:
+            print(f"Общая ошибка клиента: {e}")
+        except json.JSONDecodeError as e:
+            print(f"Ошибка декодирования JSON: {e}")
+            return None
 
     return None
 
-def get_time_spent_report(api_key: str, OPENPROJECT_URL, start_date: str, end_date: str, project_id: int = None) -> dict | None:
+
+async def get_time_spent_report(
+    api_key: str,
+    OPENPROJECT_URL: str,
+    start_date: str,
+    end_date: str,
+    project_id: Optional[int] = None
+) -> Optional[Dict[str, Any]]:
     """
-    Формирует отчет по затраченному времени за определенный промежуток времени,
-    используя OpenProject API. OPENPROJECT_URL берется из переменной окружения.
+    Асинхронно формирует отчет по затраченному времени за указанный промежуток,
+    с возможностью фильтрации по проекту.
 
     Args:
         api_key (str): API ключ пользователя OpenProject.
-        start_date (str): Начальная дата в формате 'YYYY-MM-DD'.
-        end_date (str): Конечная дата в формате 'YYYY-MM-DD'.
-        project_id (int, optional): ID проекта для фильтрации. Если не указан,
-                                     возвращается общее время по всем проектам.
-                                     По умолчанию None.
+        OPENPROJECT_URL (str): Базовый URL OpenProject.
+        start_date (str): Начальная дата 'YYYY-MM-DD'.
+        end_date (str): Конечная дата 'YYYY-MM-DD'.
+        project_id (int, optional): ID проекта для фильтрации.
 
     Returns:
-        dict: Словарь с отчетом по затраченному времени, сгруппированный по пользователям
-              и проектам, если успешно, иначе None.
-              Пример структуры отчета:
-              {
-                  'User Name 1': {
-                      'total_hours': 15.5,
-                      'projects_data': {
-                          'Project A': 10.0,
-                          'Project B': 5.5
-                      }
-                  },
-                  'User Name 2': {
-                      'total_hours': 8.0,
-                      'projects_data': {
-                          'Project C': 8.0
-                      }
-                  }
-              }
+        dict: Отчет по пользователям и проектам, или None при ошибке.
     """
-    url = f"{OPENPROJECT_URL}/api/v3/time_entries"
-    report = {}
-    all_time_entries = []
-    offset = 0
-    page_size = 100 # Установим разумный размер страницы для пагинации
-
-    headers = {
-        "Content-Type": "application/json"
-    }
-
     # Валидация дат
     try:
         start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
         end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
         if start_dt > end_dt:
-            print("Ошибка: Начальная дата не может быть позже конечной даты.")
+            print("Ошибка: начальная дата позже конечной.")
             return None
     except ValueError:
-        print("Ошибка: Неверный формат даты. Используйте 'YYYY-MM-DD'.")
+        print("Ошибка формата даты. Используйте YYYY-MM-DD.")
         return None
 
-    while True:
-        filters_list = []
-        # Фильтр по диапазону дат
-        # Изменяем оператор с "><" на "<>d" согласно документации OpenProject для "between days"
-        filters_list.append({"spentOn": {"operator": "<>d", "values": [start_date, end_date]}})
+    url = f"{OPENPROJECT_URL}/api/v3/time_entries"
+    headers = {"Content-Type": "application/json"}
+    auth = aiohttp.BasicAuth("apikey", api_key)
 
-        if project_id:
-            # Фильтр по ID проекта
-            # ID проекта должен быть строкой в списке значений.
-            filters_list.append({"project": {"operator": "=", "values": [str(project_id)]}})
+    report: Dict[str, Any] = {}
+    all_entries = []
+    offset = 0
+    page_size = 100
 
-        params = {
-            "offset": offset,
-            "pageSize": page_size,
-            "filters": json.dumps(filters_list)
-        }
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        while True:
+            # Собираем фильтры
+            filters = [
+                {"spentOn": {"operator": "<>d", "values": [start_date, end_date]}}
+            ]
+            if project_id is not None:
+                filters.append({"project": {"operator": "=", "values": [str(project_id)]}})
 
-        try:
-            response = requests.get(url, auth=("apikey", api_key), headers=headers, params=params)
-            response.raise_for_status() # Вызывает исключение для HTTP ошибок (4xx или 5xx)
+            params = {
+                "offset": offset,
+                "pageSize": page_size,
+                "filters": json.dumps(filters)
+            }
 
-            response_json = response.json()
-            time_entries = response_json.get("_embedded", {}).get("elements", [])
-            all_time_entries.extend(time_entries)
+            try:
+                async with session.get(url, params=params, timeout=30) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+            except aiohttp.ClientResponseError as e:
+                print(f"HTTP ошибка при получении записей: {e.status} — {e.message}")
+                return None
+            except aiohttp.ClientConnectorError as e:
+                print(f"Ошибка подключения: {e}")
+                return None
+            except asyncio.TimeoutError:
+                print("Время ожидания добило")
+                return None
+            except aiohttp.ClientError as e:
+                print(f"Клиентская ошибка: {e}")
+                return None
+            except json.JSONDecodeError as e:
+                print(f"Ошибка JSON: {e}")
+                return None
 
-            total = response_json.get("total", 0)
-            count = response_json.get("count", 0)
+            batch = data.get("_embedded", {}).get("elements", [])
+            total = data.get("total", 0)
+            count = data.get("count", 0)
 
-            # Если текущий offset + количество полученных записей >= общему количеству,
-            # значит, все данные получены, и можно выйти из цикла пагинации.
+            all_entries.extend(batch)
             if offset + count >= total:
                 break
-            else:
-                offset += page_size # Переходим на следующую страницу
+            offset += page_size
 
-        except requests.exceptions.HTTPError as http_err:
-            print(f"Ошибка HTTP при получении записей времени: {http_err}")
-            print(f"Ответ сервера: {response.text}")
-            return None
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Ошибка подключения: {conn_err}")
-            return None
-        except requests.exceptions.Timeout as timeout_err:
-            print(f"Время ожидания запроса истекло: {timeout_err}")
-            return None
-        except requests.exceptions.RequestException as req_err:
-            print(f"Произошла другая ошибка: {req_err}")
-            return None
-        except json.JSONDecodeError as json_err:
-            print(f"Ошибка декодирования JSON: {json_err}")
-            print(f"Не удалось декодировать: {response.text}")
-            return None
-
-    # Обработка полученных записей времени и формирование отчета
-    for entry in all_time_entries:
+    # Формируем отчет
+    for entry in all_entries:
         try:
-            user_name = entry.get("_links", {}).get("user", {}).get("title")
-            project_title = entry.get("_links", {}).get("project", {}).get("title")
+            user = entry.get("_links", {}).get("user", {}).get("title")
+            project = entry.get("_links", {}).get("project", {}).get("title")
             hours_iso = entry.get("hours")
-            spent_on_str = entry.get("spentOn")
-
-            # Проверяем наличие всех необходимых данных в записи
-            if not all([user_name, project_title, hours_iso, spent_on_str]):
-                print(f"Предупреждение: Пропущена запись из-за отсутствующих данных: {entry}")
+            if not (user and project and hours_iso):
+                print(f"Пропущена неполная запись: {entry}")
                 continue
 
-            # Конвертируем ISO длительность в часы (float)
             hours = convert_iso8601_duration_to_hours(hours_iso)
 
-            # Инициализируем структуру отчета для пользователя, если он еще не добавлен
-            if user_name not in report:
-                report[user_name] = {
-                    'total_hours': 0.0,
-                    'projects_data': {}
-                }
-
-            # Обновляем общее количество часов для пользователя
-            report[user_name]['total_hours'] += hours
-            # Обновляем количество часов для конкретного проекта этого пользователя
-            report[user_name]['projects_data'][project_title] = report[user_name]['projects_data'].get(project_title, 0.0) + hours
+            if user not in report:
+                report[user] = {"total_hours": 0.0, "projects_data": {}}
+            report[user]["total_hours"] += hours
+            report[user]["projects_data"].setdefault(project, 0.0)
+            report[user]["projects_data"][project] += hours
 
         except ValueError as ve:
-            print(f"Ошибка при обработке записи времени (конвертация часов/даты): {ve} - Запись: {entry}")
+            print(f"Ошибка конвертации: {ve} в записи: {entry}")
         except Exception as e:
-            print(f"Неизвестная ошибка при обработке записи времени: {e} - Запись: {entry}")
+            print(f"Неизвестная ошибка: {e} в записи: {entry}")
 
     return report
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     from openproject.format_utils import pretty_spent_time
+
     TARGET_ID = 50
     task_id = 667
     kkk = "4e93bcc9c4dff6304f2dc31b7b76bb9e3ba96c9c6ba4a8c2cbd0ea363bf8047c"
