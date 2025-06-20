@@ -1,5 +1,6 @@
 from openproject import get_projects, create_task, pretty_projects, \
-    get_project_tasks, log_time_on_task, pretty_tasks, get_time_spent_report, update_work_package_dates
+    get_project_tasks, log_time_on_task, pretty_tasks, \
+    get_time_spent_report, update_work_package_dates, _parse_and_format_date
 import os
 import json
 from mcp.server.fastmcp import FastMCP
@@ -8,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
-log_path = Path(r"logs/server.log")
+log_path = Path(r"logs")
 logger = setup_logger('server', log_path)
 
 # Инициализируем MCP сервер с именем 'openproject'
@@ -111,25 +112,24 @@ async def list_project_tasks(project_id: int) -> str:
 @mcp.tool()
 async def update_task_dates(
         work_package_id: int,
-        start_date: str = None,  # 'YYYY-MM-DD' или "DELETE"
-        end_date: str = None  # 'YYYY-MM-DD' или "DELETE"
+        start_date: str = None,
+        end_date: str = None
 ) -> str:
     """
     Обновляет или удаляет начальную и/или конечную дату задачи (Work Package) в OpenProject.
-    Даты должны быть в формате 'YYYY-MM-DD'.
+    Функция пытается автоматически распознать даты из разных форматов (например, DD.MM.YYYY, DD-MM-YYYY).
+    Рекомендуемый формат: 'YYYY-MM-DD'.
     Для удаления даты используйте специальное строковое значение "DELETE".
-    Если параметр даты не указан (остается None), существующая дата не изменяется.
 
     Args:
         work_package_id (int): ID задачи, которую нужно изменить.
-        start_date (Optional[str]): Новая начальная дата ('YYYY-MM-DD') или "DELETE" для удаления.
-                                     Оставьте None, чтобы не изменять.
-        end_date (Optional[str]): Новая конечная дата ('YYYY-MM-DD') или "DELETE" для удаления.
-                                   Оставьте None, чтобы не изменять.
+        start_date (Optional[str]): Новая начальная дата (например, '21.06.2025') или "DELETE" для удаления.
+        end_date (Optional[str]): Новая конечная дата (например, '30-06-2025') или "DELETE" для удаления.
 
     Returns:
         str: Отформатированное сообщение о результате операции (успех или ошибка).
     """
+    # --- ВОССТАНОВЛЕНА ВАША ПРОВЕРКА КЛЮЧЕЙ И URL ---
     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
     if not USER_API_KEY:
         logger.error("Ошибка: Ключ API OpenProject не настроен (OPENPROJECT_API_KEY).")
@@ -143,43 +143,49 @@ async def update_task_dates(
     logger.info(f"MCP Tool: Вызов update_task_dates для задачи ID {work_package_id} "
                 f"с start_date='{start_date}' и end_date='{end_date}'")
 
-    # Здесь мы ВЫЗЫВАЕМ твою функцию update_work_package_dates
+    # --- ДОБАВЛЕН БЛОК РАСПОЗНАВАНИЯ И ВАЛИДАЦИИ ДАТ ---
+    parsed_start_date = _parse_and_format_date(start_date)
+    if start_date and parsed_start_date is None:
+        return f"Ошибка: не удалось распознать начальную дату '{start_date}'. Пожалуйста, используйте формат ГГГГ-ММ-ДД или команду 'DELETE'."
+
+    parsed_end_date = _parse_and_format_date(end_date)
+    if end_date and parsed_end_date is None:
+        return f"Ошибка: не удалось распознать конечную дату '{end_date}'. Пожалуйста, используйте формат ГГГГ-ММ-ДД или команду 'DELETE'."
+
+    # Вызываем вашу низкоуровневую функцию с отформатированными датами
     task_result = await update_work_package_dates(
-        # Добавил await, если твоя функция update_work_package_dates тоже async
         api_key=USER_API_KEY,
         OPENPROJECT_URL=OPENPROJECT_URL,
         work_package_id=work_package_id,
-        start_date=start_date,
-        end_date=end_date
+        start_date=parsed_start_date,
+        end_date=parsed_end_date
     )
 
     if task_result:
         logger.info(f"Успешно обновлена задача ID: {work_package_id}.")
 
-        # Формируем читабельное сообщение об обновлении
+        # --- ВОССТАНОВЛЕНО ВАШЕ ОРИГИНАЛЬНОЕ ФОРМАТИРОВАНИЕ ОТВЕТА ---
         messages = [f"Задача ID {work_package_id} успешно обновлена."]
 
-        # Проверяем, какие даты были изменены или удалены
+        # Проверяем оригинальный ввод, чтобы сформировать правильное сообщение
         if start_date is not None:
-            if start_date == "DELETE":
+            if start_date.upper() == "DELETE":
                 messages.append("Начальная дата удалена.")
             else:
                 messages.append(f"Новая начальная дата: {task_result.get('startDate')}.")
 
         if end_date is not None:
-            if end_date == "DELETE":
+            if end_date.upper() == "DELETE":
                 messages.append("Конечная дата удалена.")
             else:
                 messages.append(f"Новая конечная дата: {task_result.get('dueDate')}.")
 
-        # Если ни одна дата не была указана для изменения/удаления (payload был пуст, кроме lockVersion)
+        # Восстановлена проверка на случай, если даты не были переданы
         if not (start_date is not None or end_date is not None):
             return "Не указаны даты для изменения или удаления. Никаких действий не выполнено."
 
         return " ".join(messages)
     else:
-        # Поскольку update_work_package_dates уже логирует ошибки, здесь можно дать общее сообщение.
-        # Более специфичные ошибки уже будут в логах от update_work_package_dates.
         logger.error(f"Не удалось обновить даты для задачи ID: {work_package_id}.")
         return f"Не удалось обновить даты для задачи ID: {work_package_id}. Проверьте лог сервера для деталей."
 

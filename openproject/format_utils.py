@@ -1,5 +1,35 @@
 import re
 import datetime
+from dateutil import parser
+from typing import Optional
+
+def _parse_and_format_date(date_str: Optional[str]) -> Optional[str]:
+    """
+    Пытается распознать дату из строки и преобразовать ее в формат 'YYYY-MM-DD'.
+
+    Args:
+        date_str (Optional[str]): Строка с датой для распознавания.
+                                  Также обрабатывает специальные значения None и "DELETE".
+
+    Returns:
+        Optional[str]: Дата в формате 'YYYY-MM-DD', "DELETE", None (если на входе None)
+                       или None, если распознать строку не удалось.
+    """
+    # Если дата не указана или это команда удаления, ничего не меняем
+    if date_str is None or date_str.upper() == "DELETE":
+        return date_str
+
+    try:
+        # Пытаемся распознать дату. dayfirst=True поможет правильно понять 'DD-MM-YYYY'
+        parsed_date = parser.parse(date_str, dayfirst=True)
+        # Возвращаем дату в нужном для API формате
+        return parsed_date.strftime('%Y-%m-%d')
+    except (parser.ParserError, TypeError):
+        # Если строка не является датой (например, "завтра" или просто мусор),
+        # возвращаем None, чтобы показать, что распознавание не удалось.
+        logger.error(f"Не удалось распознать строку '{date_str}' как дату.")
+        return None
+
 
 def pretty_projects(projects):
     formatted_projects = []
@@ -189,3 +219,4 @@ def convert_iso8601_duration_to_hours(iso_duration: str) -> float:
         minutes = float(minute_match.group(1))
 
     return hours + (minutes / 60.0)
+

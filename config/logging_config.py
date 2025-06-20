@@ -7,7 +7,7 @@ def setup_logger(name, log_file, level=logging.INFO):
     """Функция для настройки и получения логгера."""
 
     # Создаем обработчик, который будет записывать логи в файл
-    handler = logging.FileHandler(log_file, encoding='utf-8')
+    handler = logging.FileHandler(f"{log_file}_{name}", encoding='utf-8')
     # Устанавливаем формат записей: ВРЕМЯ - ИМЯ_ЛОГГЕРА - УРОВЕНЬ - СООБЩЕНИЕ
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)

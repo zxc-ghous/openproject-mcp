@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-log_path = Path(r"logs/client.log")
+log_path = Path(r"logs")
 logger = setup_logger('client', log_path)
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
@@ -92,12 +92,11 @@ class AgentManager:
             logger.info(f"Loaded {len(tools)} tools for {thread_id}")
 
             # Получаем и форматируем системный промпт
-            # projects_list = await get_projects(api_key, OPENPROJECT_URL=OPENPROJECT_URL)
-            # projects_str = "\n".join(pretty_projects(projects_list))
-            # formated_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(projects=projects_str,
-            #                                                        current_date=datetime.today().strftime('%Y-%m-%d'))
-            # formated_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(projects=projects_str,
-            #                                                        current_date=datetime.today().strftime('%Y-%m-%d'))
+            projects_list = await get_projects(api_key, OPENPROJECT_URL=OPENPROJECT_URL)
+            projects_str = "\n".join(pretty_projects(projects_list))
+            formated_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(projects=projects_str,
+                                                                   current_date=datetime.today().strftime('%Y-%m-%d'))
+
 
             # Создаем агент
             agent_executor = create_react_agent(

@@ -13,7 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
-log_path = Path(r"logs/bot.log")
+log_path = Path(r"logs")
 logger = setup_logger('bot', log_path)
 
 # Состояния для ConversationHandler

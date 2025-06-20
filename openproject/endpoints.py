@@ -8,11 +8,13 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 import aiohttp
 import asyncio
+from config import setup_logger
+from pathlib import Path
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+log_path = Path(r"logs")
+logger = setup_logger('endpoints', log_path)
 
 
 async def get_projects(api_key, OPENPROJECT_URL, page_size=100):
@@ -82,25 +84,19 @@ async def update_work_package_dates(api_key: str, OPENPROJECT_URL: str, work_pac
     """
     Асинхронно изменяет или удаляет (если передано "DELETE") начальную и/или конечную дату
     задачи (Work Package) в OpenProject, используя lockVersion.
-
-    Args:
-        api_key (str): API ключ пользователя OpenProject.
-        OPENPROJECT_URL (str): Базовый URL OpenProject.
-        work_package_id (int): ID задачи, которую нужно изменить.
-        start_date (Optional[str]): Новая начальная дата в формате 'YYYY-MM-DD',
-                                    "DELETE" для удаления, или None для игнорирования.
-        end_date (Optional[str]): Новая конечная дата в формате 'YYYY-MM-DD',
-                                  "DELETE" для удаления, или None для игнорирования.
-
-    Returns:
-        Optional[Dict[str, Any]]: Обновлённая задача или None при ошибке.
     """
+    # --- ШАГ 1: ИСПРАВЛЕННЫЙ ЗАГОЛОВОК ---
+    # Используем Content-Type, который ожидает API OpenProject
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json"  # Оставляем application/json, так как тело запроса не содержит _links или _embedded.
+                                            # Сервер должен сам корректно обработать это.
+                                            # Если ошибка сохранится, попробуйте "application/hal+json", но обычно для PATCH
+                                            # простого json достаточно. Главное - это получать ответ.
     }
     auth = aiohttp.BasicAuth("apikey", api_key)
 
     async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        # --- Блок для получения lockVersion (остается без изменений) ---
         get_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
         try:
             async with session.get(get_url, timeout=30) as get_response:
@@ -109,59 +105,48 @@ async def update_work_package_dates(api_key: str, OPENPROJECT_URL: str, work_pac
                 lock_version = current_work_package_data.get("lockVersion")
 
                 if lock_version is None:
-                    print(f"Не удалось получить lockVersion для задачи ID: {work_package_id}. Обновление невозможно.")
+                    logger.warning(f"Не удалось получить lockVersion для задачи ID: {work_package_id}. Обновление невозможно.")
                     return None
-        except aiohttp.ClientResponseError as http_err:
-            print(f"Ошибка HTTP при получении задачи: {http_err.status} — {http_err.message}")
-            return None
-        except aiohttp.ClientConnectorError as conn_err:
-            print(f"Ошибка подключения: {conn_err}")
-            return None
-        except asyncio.TimeoutError:
-            print("Время ожидания запроса истекло")
-            return None
-        except aiohttp.ClientError as req_err:
-            print(f"Общая ошибка клиента: {req_err}")
-            return None
-        except json.JSONDecodeError as json_err:
-            print(f"Ошибка декодирования JSON: {json_err}")
+        except Exception as e:
+            logger.exception(f"Произошла ошибка при получении lockVersion для задачи ID {work_package_id}.")
             return None
 
-        # Формируем тело PATCH запроса
+        # --- Формируем тело PATCH запроса (остается без изменений) ---
         payload: Dict[str, Any] = {
             "lockVersion": lock_version
         }
-
         if start_date is not None:
             payload["startDate"] = None if start_date == "DELETE" else start_date
-
         if end_date is not None:
+            # В API OpenProject поле конечной даты называется 'dueDate'
             payload["dueDate"] = None if end_date == "DELETE" else end_date
 
         if len(payload) == 1:
-            return "Не указаны даты для изменения или удаления. Никаких действий не выполнено."
+            logger.info(f"Для задачи ID {work_package_id} не указаны даты для изменения или удаления. Никаких действий не выполнено.")
+            # Возвращаем данные без изменений, а не строку
+            return current_work_package_data
 
+        # --- ШАГ 2: БЛОК ДЛЯ ОБНОВЛЕНИЯ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ОШИБКИ ---
         update_url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}"
         try:
             async with session.patch(update_url, json=payload, timeout=30) as response:
+                if not response.ok:
+                    error_details = await response.text()
+                    logger.error(
+                        f"Ошибка обновления задачи ID {work_package_id}. "
+                        f"Статус: {response.status}. URL: {response.url}. "
+                        f"Отправляемые данные: {payload}. " # Добавлено логгирование отправляемых данных
+                        f"Детали от сервера: {error_details}"
+                    )
                 response.raise_for_status()
                 data = await response.json()
-                print(f"Успешно обновлена задача ID: {work_package_id}")
+                logger.info(f"Успешно обновлена задача ID: {work_package_id}")
                 return data
-        except aiohttp.ClientResponseError as http_err:
-            print(f"Ошибка HTTP при обновлении задачи: {http_err.status} — {http_err.message}")
+        except aiohttp.ClientResponseError:
+            # Мы уже залогировали подробности выше, так что здесь можно просто вернуть None
             return None
-        except aiohttp.ClientConnectorError as conn_err:
-            print(f"Ошибка подключения: {conn_err}")
-            return None
-        except asyncio.TimeoutError:
-            print("Время ожидания запроса истекло")
-            return None
-        except aiohttp.ClientError as req_err:
-            print(f"Общая ошибка клиента: {req_err}")
-            return None
-        except json.JSONDecodeError as json_err:
-            print(f"Ошибка декодирования JSON: {json_err}")
+        except Exception as e:
+            logger.exception(f"Произошла общая ошибка при обновлении задачи ID {work_package_id}.")
             return None
 
 
