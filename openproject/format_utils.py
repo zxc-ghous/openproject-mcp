@@ -3,7 +3,7 @@ import datetime
 from dateutil import parser
 from typing import Optional
 
-def _parse_and_format_date(date_str: Optional[str]) -> Optional[str]:
+def parse_and_format_date(date_str: Optional[str]) -> Optional[str]:
     """
     Пытается распознать дату из строки и преобразовать ее в формат 'YYYY-MM-DD'.
 

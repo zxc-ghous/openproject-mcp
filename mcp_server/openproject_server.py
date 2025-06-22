@@ -1,6 +1,6 @@
 from openproject import get_projects, create_task, pretty_projects, \
     get_project_tasks, log_time_on_task, pretty_tasks, \
-    get_time_spent_report, update_work_package_dates, _parse_and_format_date
+    get_time_spent_report, update_work_package_dates, parse_and_format_date
 import os
 import json
 from mcp.server.fastmcp import FastMCP
@@ -144,11 +144,11 @@ async def update_task_dates(
                 f"с start_date='{start_date}' и end_date='{end_date}'")
 
     # --- ДОБАВЛЕН БЛОК РАСПОЗНАВАНИЯ И ВАЛИДАЦИИ ДАТ ---
-    parsed_start_date = _parse_and_format_date(start_date)
+    parsed_start_date = parse_and_format_date(start_date)
     if start_date and parsed_start_date is None:
         return f"Ошибка: не удалось распознать начальную дату '{start_date}'. Пожалуйста, используйте формат ГГГГ-ММ-ДД или команду 'DELETE'."
 
-    parsed_end_date = _parse_and_format_date(end_date)
+    parsed_end_date = parse_and_format_date(end_date)
     if end_date and parsed_end_date is None:
         return f"Ошибка: не удалось распознать конечную дату '{end_date}'. Пожалуйста, используйте формат ГГГГ-ММ-ДД или команду 'DELETE'."
 
