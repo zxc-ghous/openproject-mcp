@@ -1,6 +1,4 @@
-from openproject import get_projects, create_task, pretty_projects, \
-    get_project_tasks, log_time_on_task, pretty_tasks, \
-    get_time_spent_report, update_work_package_dates, parse_and_format_date
+from openproject import *
 import os
 import json
 from mcp.server.fastmcp import FastMCP
@@ -14,7 +12,6 @@ logger = setup_logger('server', log_path)
 
 # Инициализируем MCP сервер с именем 'openproject'
 mcp = FastMCP("openproject")
-
 
 @mcp.tool()
 async def list_projects() -> str:
@@ -43,37 +40,37 @@ async def list_projects() -> str:
     return "Найдены следующие проекты:\n" + "\n".join(formatted_projects)
 
 
-@mcp.tool()
-async def new_task(project_id: int, subject: str, description: str = None) -> str:
-    """
-    Создает новую задачу (work package) в указанном проекте OpenProject.
-    Args:
-        project_id: ID проекта, в котором нужно создать задачу.
-        subject: Название (заголовок) задачи.
-        description: (Опционально) Полное описание задачи.
-    """
-    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
-    if not USER_API_KEY:
-        return "Ошибка: Ключ API не настроен. Запуск невозможен."
-    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
-    if not OPENPROJECT_URL:
-        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
-    logger.info(f"MCP Tool: Вызов new_task для проекта ID {project_id} с заголовком '{subject}'")
-    task_result = await create_task(
-        api_key=USER_API_KEY,
-        OPENPROJECT_URL=OPENPROJECT_URL,
-        project_id=project_id,
-        subject=subject,
-        description=description
-    )
-
-    if task_result and 'id' in task_result:
-        task_id = task_result.get('id')
-        task_subject = task_result.get('subject')
-        return f"Задача '{task_subject}' успешно создана с ID: {task_id}."
-    else:
-        logger.error(f"Не удалось создать задачу '{subject}' в проекте {project_id}", exc_info=True)
-        return f"Не удалось создать задачу '{subject}' в проекте {project_id}. Проверьте лог сервера."
+# @mcp.tool()
+# async def new_task(project_id: int, subject: str, description: str = None) -> str:
+#     """
+#     Создает новую задачу (work package) в указанном проекте OpenProject.
+#     Args:
+#         project_id: ID проекта, в котором нужно создать задачу.
+#         subject: Название (заголовок) задачи.
+#         description: (Опционально) Полное описание задачи.
+#     """
+#     USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
+#     if not USER_API_KEY:
+#         return "Ошибка: Ключ API не настроен. Запуск невозможен."
+#     OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+#     if not OPENPROJECT_URL:
+#         logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
+#     logger.info(f"MCP Tool: Вызов new_task для проекта ID {project_id} с заголовком '{subject}'")
+#     task_result = await create_task(
+#         api_key=USER_API_KEY,
+#         OPENPROJECT_URL=OPENPROJECT_URL,
+#         project_id=project_id,
+#         subject=subject,
+#         description=description
+#     )
+#
+#     if task_result and 'id' in task_result:
+#         task_id = task_result.get('id')
+#         task_subject = task_result.get('subject')
+#         return f"Задача '{task_subject}' успешно создана с ID: {task_id}."
+#     else:
+#         logger.error(f"Не удалось создать задачу '{subject}' в проекте {project_id}", exc_info=True)
+#         return f"Не удалось создать задачу '{subject}' в проекте {project_id}. Проверьте лог сервера."
 
 
 @mcp.tool()
@@ -108,6 +105,48 @@ async def list_project_tasks(project_id: int) -> str:
 
     return f"Найдены следующие задачи в проекте ID {project_id}:\n" + formatted_tasks
 
+
+@mcp.tool()
+async def list_task_attachments(work_package_id: int) -> str:
+    """
+    Получает список всех вложений (которые пользователь иногда называет "документами")
+    для указанной задачи (Work Package) в OpenProject.
+
+    Args:
+        work_package_id (int): ID задачи (Work Package), для которой нужно получить вложения.
+
+    Returns:
+        str: Отформатированная строка со списком вложений или сообщение об ошибке/отсутствии вложений.
+    """
+    USER_API_KEY = os.getenv("OPENPROJECT_API_KEY")
+    if not USER_API_KEY:
+        logger.error("Ошибка: Ключ API OpenProject не настроен (OPENPROJECT_API_KEY). Запуск tool невозможен.")
+        return "Ошибка: Ключ API OpenProject не настроен. Запуск tool невозможен."
+
+    OPENPROJECT_URL = os.getenv("OPENPROJECT_URL")
+    if not OPENPROJECT_URL:
+        logger.error("Переменная окружения OPENPROJECT_URL не установлена. Запросы к OpenProject могут не работать.")
+        return "Ошибка: URL OpenProject не настроен. Запросы к OpenProject могут не работать."
+
+    logger.info(f"MCP Tool: Вызов list_task_attachments для задачи ID: {work_package_id}...")
+
+    attachments = await get_work_package_attachments(
+        api_key=USER_API_KEY,
+        OPENPROJECT_URL=OPENPROJECT_URL,
+        work_package_id=work_package_id
+    )
+
+    if attachments is None:
+        logger.error(f"Не удалось получить список вложений для задачи ID: {work_package_id}.", exc_info=True)
+        return f"Не удалось получить список вложений для задачи ID: {work_package_id}. Проверьте лог сервера для деталей."
+
+    if not attachments:
+        return f"Для задачи ID: {work_package_id} вложения не найдены."
+
+    # Форматируем ответ в удобный для чтения вид с помощью вашей функции
+    formatted_attachments_string = format_attachments(attachments)
+
+    return f"Найдены следующие вложения для задачи ID {work_package_id}:\n" + formatted_attachments_string
 
 @mcp.tool()
 async def update_task_dates(

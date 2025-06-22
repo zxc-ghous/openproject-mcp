@@ -1,7 +1,47 @@
 import re
 import datetime
 from dateutil import parser
-from typing import Optional
+from typing import Optional, List, Dict, Any
+
+
+def format_attachments(attachments_data: List[Dict[str, Any]]) -> str:
+    """
+    Форматирует список данных о вложениях в одну большую удобочитаемую строку.
+
+    Args:
+        attachments_data (List[Dict[str, Any]]): Список словарей с информацией о вложениях,
+                                                   полученных из API OpenProject.
+
+    Returns:
+        str: Одна большая строка, содержащая отформатированную информацию о всех вложениях.
+    """
+    if not attachments_data:
+        return "Вложения не найдены."
+
+    formatted_parts = []
+    for attachment in attachments_data:
+        file_name = attachment.get('fileName', 'N/A')
+
+        # Получаем имя автора
+        author_name = 'N/A'
+        if '_links' in attachment and 'author' in attachment['_links']:
+            author_name = attachment['_links']['author'].get('title', 'N/A')
+
+        # Получаем название задачи (контейнера)
+        task_name = 'N/A'
+        if '_links' in attachment and 'container' in attachment['_links']:
+            task_name = attachment['_links']['container'].get('title', 'N/A')
+
+        formatted_parts.append(
+            f"Имя файла: **{file_name}**\n"
+            f"  Автор: {author_name}\n"
+            f"  Задача: {task_name}"  # Убрали "---" здесь, чтобы он был только между записями
+        )
+
+    # Объединяем все отформатированные части в одну строку,
+    # используя "---" как разделитель между записями о файлах.
+    return "\n---\n".join(formatted_parts)
+
 
 def parse_and_format_date(date_str: Optional[str]) -> Optional[str]:
     """

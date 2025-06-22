@@ -269,6 +269,51 @@ async def get_project_tasks(api_key: str, OPENPROJECT_URL: str, project_id: int)
 
     return None
 
+async def get_work_package_attachments(api_key: str, OPENPROJECT_URL: str, work_package_id: int) -> Optional[List[Dict[str, Any]]]:
+    """
+    Асинхронно получает список вложений для указанной задачи (Work Package) в OpenProject.
+
+    Args:
+        api_key (str): API ключ пользователя OpenProject.
+        OPENPROJECT_URL (str): Базовый URL OpenProject.
+        work_package_id (int): ID задачи (Work Package), для которой нужно получить вложения.
+
+    Returns:
+        list: Список словарей, представляющих вложения, если успешно,
+              или пустой список, если вложений нет, или None при ошибке.
+    """
+    url = f"{OPENPROJECT_URL}/api/v3/work_packages/{work_package_id}/attachments"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    auth = aiohttp.BasicAuth("apikey", api_key)
+
+    async with aiohttp.ClientSession(auth=auth, headers=headers) as session:
+        try:
+            async with session.get(url, timeout=30) as response:
+                response.raise_for_status()
+                data = await response.json()
+                attachments = data.get('_embedded', {}).get('elements', [])
+
+                if attachments:
+                    print(f"Успешно получен список из {len(attachments)} вложений для задачи ID: {work_package_id}")
+                else:
+                    print(f"Для задачи ID: {work_package_id} вложения не найдены.")
+                return attachments
+
+        except aiohttp.ClientResponseError as http_err:
+            print(f"Ошибка HTTP при получении вложений: {http_err.status} — {http_err.message}")
+        except aiohttp.ClientConnectorError as conn_err:
+            print(f"Ошибка подключения: {conn_err}")
+        except asyncio.TimeoutError:
+            print("Время ожидания запроса истекло")
+        except aiohttp.ClientError as req_err:
+            print(f"Общая ошибка клиента: {req_err}")
+        except json.JSONDecodeError as json_err:
+            print(f"Ошибка декодирования JSON: {json_err}")
+            return None
+
+    return None
 
 async def log_time_on_task(
     api_key: str,
@@ -445,14 +490,12 @@ async def get_time_spent_report(
 
     return report
 
-
-if __name__ == "__main__":
-    from openproject.format_utils import pretty_spent_time
-
+async def main():
     TARGET_ID = 50
     task_id = 667
     kkk = "4e93bcc9c4dff6304f2dc31b7b76bb9e3ba96c9c6ba4a8c2cbd0ea363bf8047c"
-    start_date_str = "2025-05-12"
-    end_date_str = "2025-06-11"
-    report_specific_project = get_time_spent_report(kkk, start_date_str, end_date_str, 19)
-    print(pretty_spent_time(report_specific_project))
+    attachments = await get_work_package_attachments(kkk, os.getenv("OPENPROJECT_URL"), task_id)
+    print(attachments)
+
+if __name__ == "__main__":
+    asyncio.run(main())
