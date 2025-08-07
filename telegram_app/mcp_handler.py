@@ -46,7 +46,8 @@ class AgentManager:
         self._locks = {}  # thread_id -> asyncio.Lock для предотвращения гонки состояний при создании агента
 
         # Эти компоненты являются общими для всех агентов
-        self.model = GigaChat(model="GigaChat-2-Max", timeout=120)
+        self.model = GigaChat(model="GigaChat-2-Max", timeout=120, verify_ssl_certs=False, scope="GIGACHAT_API_B2B")
+        logger.info(f'model is: {self.model}')
         self.checkpointer = InMemorySaver()
         logger.info("AgentManager initialized.")
 
